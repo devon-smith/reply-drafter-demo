@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reply Drafter (Demo)</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body>
+  <main id="app" aria-live="polite">
+    <header class="head">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 7 4 12 9 17"></polyline>
+          <path d="M4 12h11a5 5 0 0 1 5 5v0"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>Reply Drafter</h1>
+        <p class="sub">Connectivity &amp; permission test</p>
+      </div>
+    </header>
+
+    <!-- Step 1: prove the add-in loaded and can talk to Office.js -->
+    <section class="card" id="status-card">
+      <p class="status" id="status">Loading Office.js…</p>
+    </section>
+
+    <!-- Step 2: read the open message -->
+    <button class="btn primary" id="read-btn" disabled>Read this email</button>
+
+    <section class="card readout" id="readout" hidden>
+      <div class="row"><span class="k">From</span><span class="v" id="r-from">—</span></div>
+      <div class="row"><span class="k">Subject</span><span class="v" id="r-subject">—</span></div>
+      <div class="row col"><span class="k">Body (first 400 chars)</span><pre class="v body" id="r-body">—</pre></div>
+    </section>
+
+    <!-- Step 3: prove we can write into a reply -->
+    <button class="btn" id="draft-btn" disabled>Open a prefilled reply</button>
+
+    <p class="hint" id="hint">
+      If this panel opened at all, custom add-ins are allowed on this account.
+      Reading and opening a reply confirms Office.js works end to end.
+    </p>
+  </main>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>
