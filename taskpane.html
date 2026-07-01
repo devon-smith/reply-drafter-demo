@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Reply Drafter (Demo)</title>
-  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
+          onerror="window.__officeLoadError = true;"></script>
   <link rel="stylesheet" href="taskpane.css" />
 </head>
 <body>
@@ -22,21 +23,18 @@
       </div>
     </header>
 
-    <!-- Step 1: prove the add-in loaded and can talk to Office.js -->
     <section class="card" id="status-card">
-      <p class="status" id="status">Loading Office.js…</p>
+      <p class="status" id="status">Connecting to Outlook...</p>
     </section>
 
-    <!-- Step 2: read the open message -->
     <button class="btn primary" id="read-btn" disabled>Read this email</button>
 
     <section class="card readout" id="readout" hidden>
-      <div class="row"><span class="k">From</span><span class="v" id="r-from">—</span></div>
-      <div class="row"><span class="k">Subject</span><span class="v" id="r-subject">—</span></div>
-      <div class="row col"><span class="k">Body (first 400 chars)</span><pre class="v body" id="r-body">—</pre></div>
+      <div class="row"><span class="k">From</span><span class="v" id="r-from">-</span></div>
+      <div class="row"><span class="k">Subject</span><span class="v" id="r-subject">-</span></div>
+      <div class="row col"><span class="k">Body (first 400 chars)</span><pre class="v body" id="r-body">-</pre></div>
     </section>
 
-    <!-- Step 3: prove we can write into a reply -->
     <button class="btn" id="draft-btn" disabled>Open a prefilled reply</button>
 
     <p class="hint" id="hint">
@@ -45,6 +43,91 @@
     </p>
   </main>
 
-  <script src="taskpane.js"></script>
+  <script>
+    (function () {
+      var statusEl, readBtn, draftBtn, ready = false;
+      var last = { fromName: "", fromEmail: "", subject: "", body: "" };
+
+      function el(id) { return document.getElementById(id); }
+      function setStatus(msg, kind) {
+        statusEl = statusEl || el("status");
+        statusEl.textContent = msg;
+        statusEl.className = "status" + (kind ? " " + kind : "");
+      }
+
+      function boot() {
+        statusEl = el("status"); readBtn = el("read-btn"); draftBtn = el("draft-btn");
+        if (window.__officeLoadError) {
+          setStatus("office.js failed to download (blocked or network). The failure is the load itself.", "err");
+          return;
+        }
+        if (typeof Office === "undefined") {
+          setStatus("office.js loaded but did not define Office. Load-level failure.", "err");
+          return;
+        }
+        var timer = setTimeout(function () {
+          if (!ready) {
+            setStatus("office.js loaded but never connected to the Outlook host (7s). In Outlook on the web this is usually a third-party-frame/storage restriction - the add-in should render in the new Outlook desktop app. (A plain browser tab shows this too, since there is no host to connect to.)", "err");
+          }
+        }, 7000);
+        try {
+          Office.onReady(function (info) {
+            ready = true; clearTimeout(timer);
+            if (!info || info.host !== Office.HostType.Outlook) {
+              setStatus("Running standalone - office.js works, but there is no Outlook host to connect to. Open this from inside Outlook.", "err");
+              return;
+            }
+            setStatus("Connected to Outlook. Add-in is running.", "ok");
+            readBtn.disabled = false;
+            readBtn.addEventListener("click", readEmail);
+            draftBtn.addEventListener("click", draftReply);
+          });
+        } catch (e) {
+          clearTimeout(timer);
+          setStatus("Error during Office.onReady: " + ((e && e.message) || e), "err");
+        }
+      }
+
+      function readEmail() {
+        try {
+          var item = Office.context.mailbox.item;
+          if (!item) { setStatus("No message is open. Select an email and try again.", "err"); return; }
+          last.subject = item.subject || "(no subject)";
+          last.fromName = (item.from && item.from.displayName) || "there";
+          last.fromEmail = (item.from && item.from.emailAddress) || "";
+          el("r-from").textContent = last.fromEmail ? last.fromName + " <" + last.fromEmail + ">" : last.fromName;
+          el("r-subject").textContent = last.subject;
+          item.body.getAsync(Office.CoercionType.Text, function (result) {
+            if (result.status === Office.AsyncResultStatus.Succeeded) {
+              last.body = (result.value || "").trim();
+              var preview = last.body.slice(0, 400) + (last.body.length > 400 ? "..." : "");
+              el("r-body").textContent = preview || "(empty body)";
+              el("readout").hidden = false;
+              draftBtn.disabled = false;
+              setStatus("Read the message successfully.", "ok");
+            } else {
+              setStatus("Could not read the body: " + result.error.message, "err");
+            }
+          });
+        } catch (e) { setStatus("readEmail error: " + ((e && e.message) || e), "err"); }
+      }
+
+      function draftReply() {
+        try {
+          var firstName = last.fromName.split(" ")[0];
+          var replyText =
+            "Hi " + firstName + ",\n\n" +
+            "Thanks for your note about \"" + last.subject + "\". " +
+            "[This is placeholder text - the generated reply will appear here.]\n\n" +
+            "Best,\n";
+          Office.context.mailbox.item.displayReplyForm(replyText);
+          setStatus("Opened a reply with prefilled text. Edit and send as normal.", "ok");
+        } catch (e) { setStatus("draftReply error: " + ((e && e.message) || e), "err"); }
+      }
+
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+      else boot();
+    })();
+  </script>
 </body>
 </html>
