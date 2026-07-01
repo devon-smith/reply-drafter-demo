@@ -5,7 +5,7 @@
   Office.js can read the open email and open a prefilled reply. No backend, no AI, no Graph.
 
   BEFORE SIDELOADING: find-and-replace every occurrence of
-      https://REPLACE-ME.example.com
+      https://devon-smith.github.io/reply-drafter-demo
   with the base URL where you host taskpane.html / commands.html / the icons.
   (See README.md — GitHub Pages is the least-friction option on a locked-down machine.)
 -->
@@ -23,12 +23,12 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Reply Drafter (Demo)"/>
   <Description DefaultValue="Reads the open email and opens a prefilled reply. A connectivity/permission test for custom Outlook add-ins."/>
-  <IconUrl DefaultValue="https://REPLACE-ME.example.com/icon-64.png"/>
-  <HighResolutionIconUrl DefaultValue="https://REPLACE-ME.example.com/icon-128.png"/>
-  <SupportUrl DefaultValue="https://REPLACE-ME.example.com/"/>
+  <IconUrl DefaultValue="https://devon-smith.github.io/reply-drafter-demo/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="https://devon-smith.github.io/reply-drafter-demo/icon-128.png"/>
+  <SupportUrl DefaultValue="https://devon-smith.github.io/reply-drafter-demo/"/>
 
   <AppDomains>
-    <AppDomain>https://REPLACE-ME.example.com</AppDomain>
+    <AppDomain>https://devon-smith.github.io/reply-drafter-demo</AppDomain>
   </AppDomains>
 
   <Hosts>
@@ -45,7 +45,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://REPLACE-ME.example.com/taskpane.html"/>
+        <SourceLocation DefaultValue="https://devon-smith.github.io/reply-drafter-demo/taskpane.html"/>
         <RequestedHeight>280</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -102,13 +102,13 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="icon16" DefaultValue="https://REPLACE-ME.example.com/icon-16.png"/>
-        <bt:Image id="icon32" DefaultValue="https://REPLACE-ME.example.com/icon-32.png"/>
-        <bt:Image id="icon80" DefaultValue="https://REPLACE-ME.example.com/icon-80.png"/>
+        <bt:Image id="icon16" DefaultValue="https://devon-smith.github.io/reply-drafter-demo/icon-16.png"/>
+        <bt:Image id="icon32" DefaultValue="https://devon-smith.github.io/reply-drafter-demo/icon-32.png"/>
+        <bt:Image id="icon80" DefaultValue="https://devon-smith.github.io/reply-drafter-demo/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="functionFile" DefaultValue="https://REPLACE-ME.example.com/commands.html"/>
-        <bt:Url id="taskpaneUrl" DefaultValue="https://REPLACE-ME.example.com/taskpane.html"/>
+        <bt:Url id="functionFile" DefaultValue="https://devon-smith.github.io/reply-drafter-demo/commands.html"/>
+        <bt:Url id="taskpaneUrl" DefaultValue="https://devon-smith.github.io/reply-drafter-demo/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="groupLabel" DefaultValue="Reply Drafter"/>
