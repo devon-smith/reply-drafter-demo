@@ -1,0 +1,9 @@
+{
+  "name": "reply-drafter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": { "start": "node server/index.js" },
+  "dependencies": { "express": "^5.1.0" }
+}

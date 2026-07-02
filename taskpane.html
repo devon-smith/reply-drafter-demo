@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reply Drafter</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
+          onerror="window.__officeLoadError = true;"></script>
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body>
+  <main id="app" aria-live="polite">
+    <header class="head">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 7 4 12 9 17"></polyline>
+          <path d="M4 12h11a5 5 0 0 1 5 5v0"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>Reply Drafter</h1>
+        <p class="sub">AI reply in your inbox</p>
+      </div>
+    </header>
+
+    <section class="card" id="status-card">
+      <p class="status" id="status">Connecting to Outlook...</p>
+    </section>
+
+    <button class="btn primary" id="read-btn" disabled>Read this email</button>
+
+    <section class="card readout" id="readout" hidden>
+      <div class="row"><span class="k">From</span><span class="v" id="r-from">-</span></div>
+      <div class="row"><span class="k">Subject</span><span class="v" id="r-subject">-</span></div>
+      <div class="row col"><span class="k">Body (first 400 chars)</span><pre class="v body" id="r-body">-</pre></div>
+    </section>
+
+    <button class="btn" id="draft-btn" disabled>Generate reply</button>
+
+    <p class="hint" id="hint">Reads the open email, generates a reply with Claude, and opens it as an editable draft.</p>
+  </main>
+
+  <script>
+    (function () {
+      var statusEl, readBtn, draftBtn, ready = false;
+      var last = { fromName: "", fromEmail: "", subject: "", body: "" };
+
+      function el(id) { return document.getElementById(id); }
+      function setStatus(msg, kind) {
+        statusEl = statusEl || el("status");
+        statusEl.textContent = msg;
+        statusEl.className = "status" + (kind ? " " + kind : "");
+      }
+
+      function boot() {
+        statusEl = el("status"); readBtn = el("read-btn"); draftBtn = el("draft-btn");
+        if (window.__officeLoadError) { setStatus("office.js failed to download (blocked or network).", "err"); return; }
+        if (typeof Office === "undefined") { setStatus("office.js loaded but did not define Office.", "err"); return; }
+
+        var timer = setTimeout(function () {
+          if (!ready) setStatus("office.js loaded but never connected to the Outlook host (7s). Try the new Outlook desktop app.", "err");
+        }, 7000);
+
+        try {
+          Office.onReady(function (info) {
+            ready = true; clearTimeout(timer);
+            if (!info || info.host !== Office.HostType.Outlook) {
+              setStatus("Running standalone - open this from inside Outlook.", "err"); return;
+            }
+            setStatus("Connected. Open an email and click Read this email.", "ok");
+            readBtn.disabled = false;
+            readBtn.addEventListener("click", readEmail);
+            draftBtn.addEventListener("click", generateReply);
+          });
+        } catch (e) { clearTimeout(timer); setStatus("Office.onReady error: " + ((e && e.message) || e), "err"); }
+      }
+
+      function readEmail() {
+        try {
+          var item = Office.context.mailbox.item;
+          if (!item) { setStatus("No message is open. Select an email and try again.", "err"); return; }
+          last.subject = item.subject || "(no subject)";
+          last.fromName = (item.from && item.from.displayName) || "there";
+          last.fromEmail = (item.from && item.from.emailAddress) || "";
+          el("r-from").textContent = last.fromEmail ? last.fromName + " <" + last.fromEmail + ">" : last.fromName;
+          el("r-subject").textContent = last.subject;
+          item.body.getAsync(Office.CoercionType.Text, function (result) {
+            if (result.status === Office.AsyncResultStatus.Succeeded) {
+              last.body = (result.value || "").trim();
+              var preview = last.body.slice(0, 400) + (last.body.length > 400 ? "..." : "");
+              el("r-body").textContent = preview || "(empty body)";
+              el("readout").hidden = false;
+              draftBtn.disabled = false;
+              setStatus("Read the message. Click Generate reply.", "ok");
+            } else { setStatus("Could not read the body: " + result.error.message, "err"); }
+          });
+        } catch (e) { setStatus("readEmail error: " + ((e && e.message) || e), "err"); }
+      }
+
+      async function generateReply() {
+        try {
+          draftBtn.disabled = true;
+          setStatus("Generating reply with Claude...", "");
+          var resp = await fetch("/draft", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ from: last.fromName, subject: last.subject, body: last.body })
+          });
+          if (!resp.ok) {
+            var errText = "";
+            try { errText = (await resp.json()).error || ""; } catch (e) { errText = "HTTP " + resp.status; }
+            setStatus("Generation failed: " + errText, "err");
+            draftBtn.disabled = false;
+            return;
+          }
+          var data = await resp.json();
+          var reply = (data.reply || "").trim();
+          if (!reply) { setStatus("Empty reply returned.", "err"); draftBtn.disabled = false; return; }
+          Office.context.mailbox.item.displayReplyForm(reply);
+          setStatus("Opened a draft reply. Edit and send as normal.", "ok");
+          draftBtn.disabled = false;
+        } catch (e) {
+          setStatus("Network error calling /draft: " + ((e && e.message) || e), "err");
+          draftBtn.disabled = false;
+        }
+      }
+
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+      else boot();
+    })();
+  </script>
+</body>
+</html>
