@@ -16,6 +16,10 @@ services:
     restart: unless-stopped
     env_file: .env
     expose: ["3000"]
+    volumes:
+      # Editable prompt + KB, read fresh per request — tweak without a rebuild.
+      - ./prompt:/app/prompt:ro
+      - ./kb:/app/kb:ro
 volumes:
   caddy_data:
   caddy_config:
