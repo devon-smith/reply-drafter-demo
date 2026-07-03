@@ -1,10 +1,13 @@
-# Gmail family-use add-on — scope & plan
+# Gmail family-use add-on — implementation detail
 
-> Companion track to the Outlook add-in. This documents a deliberate scope
-> change: earlier planning notes listed **Gmail as excluded**; we are now
-> building a small, private Gmail add-on so a handful of family members (2–10
-> users) can draft replies with Claude. This does **not** replace the Outlook
-> work — both share the same `/draft` backend.
+> **Sub-doc.** The canonical plan is [`project-scope.md`](project-scope.md); this file is the
+> Gmail add-on implementation detail (scopes, CASA rationale, backend contract). Where they
+> overlap, `project-scope.md` wins.
+>
+> Companion track to the Outlook add-in: a small, private Gmail add-on so a handful of family
+> members (2–10 users) can draft replies with Claude. This does **not** replace the Outlook
+> work — both share the same `/draft` backend. (The Supabase-backed per-user config that
+> supersedes the local `UserProperties` overrides is specified in `project-scope.md`.)
 
 ## Why this is light
 
