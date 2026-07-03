@@ -93,7 +93,11 @@ where Microsoft Graph and its consent prompt enter — deliberately kept out of 
 ## Related: Gmail family-use add-on
 
 A companion Gmail add-on (Google Apps Script) lets a small family group draft replies with
-Claude against the **same `/draft` backend**. It lives in [`gmail-addon/`](gmail-addon/); the
-scope and plan are in [`docs/gmail-addon.md`](docs/gmail-addon.md). This is a deliberate scope
-expansion beyond the original Outlook-only demo — both add-ins share one backend.
+Claude against the **same `/draft` backend**, with per-user knowledge base + prompt/tone backed
+by Supabase. It lives in [`gmail-addon/`](gmail-addon/); the add-on detail is in
+[`docs/gmail-addon.md`](docs/gmail-addon.md). This is a deliberate scope expansion beyond the
+original Outlook-only demo — both add-ins share one backend.
+
+**Canonical docs:** project guidance is in [`CLAUDE.md`](CLAUDE.md); the full task-level plan
+(Gmail + Supabase multi-user) is in [`docs/project-scope.md`](docs/project-scope.md).
 # reply-drafter-demo
