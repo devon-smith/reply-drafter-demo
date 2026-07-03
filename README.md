@@ -87,4 +87,13 @@ Swap the static template in `taskpane.js` (marked `AI SLOT`) for a call to a sma
 that does retrieval over your sent-mail voice profile plus the knowledge base, then returns a
 generated draft. Reading full thread context (rather than just the open message) is the point
 where Microsoft Graph and its consent prompt enter — deliberately kept out of this demo.
+
+---
+
+## Related: Gmail family-use add-on
+
+A companion Gmail add-on (Google Apps Script) lets a small family group draft replies with
+Claude against the **same `/draft` backend**. It lives in [`gmail-addon/`](gmail-addon/); the
+scope and plan are in [`docs/gmail-addon.md`](docs/gmail-addon.md). This is a deliberate scope
+expansion beyond the original Outlook-only demo — both add-ins share one backend.
 # reply-drafter-demo
