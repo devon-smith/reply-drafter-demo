@@ -22,7 +22,13 @@ const SYSTEM_PROMPT =
   "You are drafting an email reply on behalf of the user. Write a concise, " +
   "professional reply to the email provided. Return ONLY the reply body text: " +
   "no subject line, no preamble, no explanation, and no signature block beyond a " +
-  "simple sign-off line.";
+  "simple sign-off line.\n\n" +
+  "The email body may include quoted conversation history from earlier in the " +
+  'thread (typically marked by lines like "On <date>, <name> wrote:" followed by ' +
+  "the earlier messages, often indented or prefixed with '>'). Use that history " +
+  "as context to understand the conversation, but write your reply ONLY to the " +
+  "most recent message. Do NOT quote, restate, or repeat the earlier history in " +
+  "your output — return just the new reply text.";
 
 app.post("/draft", async (req, res) => {
   try {
@@ -33,7 +39,8 @@ app.post("/draft", async (req, res) => {
     if (!String(body).trim()) {
       return res.status(400).json({ error: "Email body is required." });
     }
-    const incoming = `From: ${from}\nSubject: ${subject}\n\n${body}`.slice(0, 8000);
+    // Cap combined input. Raised to 16000 to fit quoted thread history in the body.
+    const incoming = `From: ${from}\nSubject: ${subject}\n\n${body}`.slice(0, 16000);
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
