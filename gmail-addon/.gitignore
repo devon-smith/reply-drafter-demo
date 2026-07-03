@@ -1,0 +1,4 @@
+# clasp — never commit credentials or the per-machine project link
+.clasp.json
+.clasprc.json
+node_modules/
