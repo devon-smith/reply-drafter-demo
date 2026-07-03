@@ -38,10 +38,16 @@
 
   <script>
     (function () {
-      var statusEl, regenBtn, ready = false;
+      var statusEl, regenBtn, ready = false, mode = "read";
       var last = { fromName: "", subject: "", body: "" };
 
       function el(id) { return document.getElementById(id); }
+
+      // Compose surfaces expose subject/body as writable objects (getAsync/setAsync);
+      // on the read surface item.subject is a plain string.
+      function isComposeItem(item) {
+        return !!(item && item.subject && typeof item.subject.getAsync === "function");
+      }
       function setStatus(msg, kind) {
         statusEl = statusEl || el("status");
         statusEl.textContent = msg;
@@ -50,7 +56,10 @@
 
       function boot() {
         statusEl = el("status"); regenBtn = el("regen-btn");
-        regenBtn.addEventListener("click", function () { if (last.body) generate(); else runAll(); });
+        regenBtn.addEventListener("click", function () {
+          if (mode === "compose") { if (last.body) generateAndInsert(); else runCompose(); }
+          else { if (last.body) generate(); else runAll(); }
+        });
 
         if (window.__officeLoadError) { setStatus("office.js failed to download.", "err"); return; }
         if (typeof Office === "undefined") { setStatus("office.js did not define Office.", "err"); return; }
@@ -65,7 +74,9 @@
             if (!info || info.host !== Office.HostType.Outlook) {
               setStatus("Running standalone - open this from inside Outlook.", "err"); return;
             }
-            runAll();   // <-- auto-run: read + generate + open reply, no clicks
+            mode = isComposeItem(Office.context.mailbox.item) ? "compose" : "read";
+            if (mode === "compose") runCompose();  // read draft + generate + insert in place
+            else runAll();                         // read email + generate + open reply
           });
         } catch (e) { clearTimeout(timer); setStatus("Office.onReady error: " + ((e && e.message) || e), "err"); }
       }
@@ -110,6 +121,58 @@
           Office.context.mailbox.item.displayReplyForm(reply);
           setStatus("Draft reply opened. Edit and send, or Regenerate.", "ok");
           regenBtn.disabled = false;
+        } catch (e) { setStatus("Network error calling /draft: " + ((e && e.message) || e), "err"); regenBtn.disabled = false; }
+      }
+
+      // COMPOSE path: read the already-open draft for context (it carries the quoted
+      // thread), then generate and insert in place — no new window.
+      function runCompose() {
+        try {
+          var item = Office.context.mailbox.item;
+          if (!item) { setStatus("No draft is open.", "err"); return; }
+          last.fromName = "";
+          el("r-from").textContent = "(composing)";
+          el("readout").hidden = false;
+          setStatus("Reading the open draft...", "");
+          item.subject.getAsync(function (sres) {
+            last.subject = (sres.status === Office.AsyncResultStatus.Succeeded && sres.value) || "(no subject)";
+            el("r-subject").textContent = last.subject;
+            item.body.getAsync(Office.CoercionType.Text, function (bres) {
+              if (bres.status === Office.AsyncResultStatus.Succeeded) {
+                last.body = (bres.value || "").trim();
+                if (!last.body) { setStatus("The draft is empty - reply to a message first, then draft.", "err"); return; }
+                generateAndInsert();
+              } else { setStatus("Could not read the draft: " + bres.error.message, "err"); }
+            });
+          });
+        } catch (e) { setStatus("compose read error: " + ((e && e.message) || e), "err"); }
+      }
+
+      // COMPOSE step 2: POST to the VPS, then insert the reply into the open draft body.
+      async function generateAndInsert() {
+        try {
+          regenBtn.disabled = true;
+          setStatus("Generating reply with Claude...", "");
+          var resp = await fetch("/draft", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ from: last.fromName, subject: last.subject, body: last.body })
+          });
+          if (!resp.ok) {
+            var msg = "";
+            try { msg = (await resp.json()).error || ""; } catch (e) { msg = "HTTP " + resp.status; }
+            setStatus("Generation failed: " + msg, "err"); regenBtn.disabled = false; return;
+          }
+          var reply = ((await resp.json()).reply || "").trim();
+          if (!reply) { setStatus("Empty reply returned.", "err"); regenBtn.disabled = false; return; }
+          Office.context.mailbox.item.body.setAsync(reply, { coercionType: Office.CoercionType.Text }, function (ins) {
+            if (ins.status === Office.AsyncResultStatus.Succeeded) {
+              setStatus("Draft inserted. Edit and send, or Regenerate.", "ok");
+            } else {
+              setStatus("Could not insert the draft: " + ins.error.message, "err");
+            }
+            regenBtn.disabled = false;
+          });
         } catch (e) { setStatus("Network error calling /draft: " + ((e && e.message) || e), "err"); regenBtn.disabled = false; }
       }
 
