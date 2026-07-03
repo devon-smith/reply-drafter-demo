@@ -24,26 +24,22 @@
     </header>
 
     <section class="card" id="status-card">
-      <p class="status" id="status">Connecting to Outlook...</p>
+      <p class="status" id="status">Starting...</p>
     </section>
-
-    <button class="btn primary" id="read-btn" disabled>Read this email</button>
 
     <section class="card readout" id="readout" hidden>
       <div class="row"><span class="k">From</span><span class="v" id="r-from">-</span></div>
       <div class="row"><span class="k">Subject</span><span class="v" id="r-subject">-</span></div>
-      <div class="row col"><span class="k">Body (first 400 chars)</span><pre class="v body" id="r-body">-</pre></div>
     </section>
 
-    <button class="btn" id="draft-btn" disabled>Generate reply</button>
-
-    <p class="hint" id="hint">Reads the open email, generates a reply with Claude, and opens it as an editable draft.</p>
+    <button class="btn primary" id="regen-btn" disabled>Regenerate</button>
+    <p class="hint">Drafts automatically when the pane opens. Use Regenerate for a different version.</p>
   </main>
 
   <script>
     (function () {
-      var statusEl, readBtn, draftBtn, ready = false;
-      var last = { fromName: "", fromEmail: "", subject: "", body: "" };
+      var statusEl, regenBtn, ready = false;
+      var last = { fromName: "", subject: "", body: "" };
 
       function el(id) { return document.getElementById(id); }
       function setStatus(msg, kind) {
@@ -53,12 +49,14 @@
       }
 
       function boot() {
-        statusEl = el("status"); readBtn = el("read-btn"); draftBtn = el("draft-btn");
-        if (window.__officeLoadError) { setStatus("office.js failed to download (blocked or network).", "err"); return; }
-        if (typeof Office === "undefined") { setStatus("office.js loaded but did not define Office.", "err"); return; }
+        statusEl = el("status"); regenBtn = el("regen-btn");
+        regenBtn.addEventListener("click", function () { if (last.body) generate(); else runAll(); });
+
+        if (window.__officeLoadError) { setStatus("office.js failed to download.", "err"); return; }
+        if (typeof Office === "undefined") { setStatus("office.js did not define Office.", "err"); return; }
 
         var timer = setTimeout(function () {
-          if (!ready) setStatus("office.js loaded but never connected to the Outlook host (7s). Try the new Outlook desktop app.", "err");
+          if (!ready) setStatus("office.js never connected to the Outlook host (7s). Try the desktop app.", "err");
         }, 7000);
 
         try {
@@ -67,39 +65,35 @@
             if (!info || info.host !== Office.HostType.Outlook) {
               setStatus("Running standalone - open this from inside Outlook.", "err"); return;
             }
-            setStatus("Connected. Open an email and click Read this email.", "ok");
-            readBtn.disabled = false;
-            readBtn.addEventListener("click", readEmail);
-            draftBtn.addEventListener("click", generateReply);
+            runAll();   // <-- auto-run: read + generate + open reply, no clicks
           });
         } catch (e) { clearTimeout(timer); setStatus("Office.onReady error: " + ((e && e.message) || e), "err"); }
       }
 
-      function readEmail() {
+      // Step 1: read the open email, then chain into generation.
+      function runAll() {
         try {
           var item = Office.context.mailbox.item;
-          if (!item) { setStatus("No message is open. Select an email and try again.", "err"); return; }
+          if (!item) { setStatus("No message is open. Open an email and reopen the pane.", "err"); return; }
           last.subject = item.subject || "(no subject)";
           last.fromName = (item.from && item.from.displayName) || "there";
-          last.fromEmail = (item.from && item.from.emailAddress) || "";
-          el("r-from").textContent = last.fromEmail ? last.fromName + " <" + last.fromEmail + ">" : last.fromName;
+          el("r-from").textContent = last.fromName;
           el("r-subject").textContent = last.subject;
+          el("readout").hidden = false;
+          setStatus("Reading this email...", "");
           item.body.getAsync(Office.CoercionType.Text, function (result) {
             if (result.status === Office.AsyncResultStatus.Succeeded) {
               last.body = (result.value || "").trim();
-              var preview = last.body.slice(0, 400) + (last.body.length > 400 ? "..." : "");
-              el("r-body").textContent = preview || "(empty body)";
-              el("readout").hidden = false;
-              draftBtn.disabled = false;
-              setStatus("Read the message. Click Generate reply.", "ok");
+              generate();
             } else { setStatus("Could not read the body: " + result.error.message, "err"); }
           });
-        } catch (e) { setStatus("readEmail error: " + ((e && e.message) || e), "err"); }
+        } catch (e) { setStatus("read error: " + ((e && e.message) || e), "err"); }
       }
 
-      async function generateReply() {
+      // Step 2: POST to the VPS, then open the reply pre-filled.
+      async function generate() {
         try {
-          draftBtn.disabled = true;
+          regenBtn.disabled = true;
           setStatus("Generating reply with Claude...", "");
           var resp = await fetch("/draft", {
             method: "POST",
@@ -107,22 +101,16 @@
             body: JSON.stringify({ from: last.fromName, subject: last.subject, body: last.body })
           });
           if (!resp.ok) {
-            var errText = "";
-            try { errText = (await resp.json()).error || ""; } catch (e) { errText = "HTTP " + resp.status; }
-            setStatus("Generation failed: " + errText, "err");
-            draftBtn.disabled = false;
-            return;
+            var msg = "";
+            try { msg = (await resp.json()).error || ""; } catch (e) { msg = "HTTP " + resp.status; }
+            setStatus("Generation failed: " + msg, "err"); regenBtn.disabled = false; return;
           }
-          var data = await resp.json();
-          var reply = (data.reply || "").trim();
-          if (!reply) { setStatus("Empty reply returned.", "err"); draftBtn.disabled = false; return; }
+          var reply = ((await resp.json()).reply || "").trim();
+          if (!reply) { setStatus("Empty reply returned.", "err"); regenBtn.disabled = false; return; }
           Office.context.mailbox.item.displayReplyForm(reply);
-          setStatus("Opened a draft reply. Edit and send as normal.", "ok");
-          draftBtn.disabled = false;
-        } catch (e) {
-          setStatus("Network error calling /draft: " + ((e && e.message) || e), "err");
-          draftBtn.disabled = false;
-        }
+          setStatus("Draft reply opened. Edit and send, or Regenerate.", "ok");
+          regenBtn.disabled = false;
+        } catch (e) { setStatus("Network error calling /draft: " + ((e && e.message) || e), "err"); regenBtn.disabled = false; }
       }
 
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
