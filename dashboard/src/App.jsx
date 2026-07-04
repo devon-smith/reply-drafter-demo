@@ -1,0 +1,55 @@
+import { useEffect, useState } from "react";
+import { supabase } from "./supabaseClient.js";
+import KbManager from "./components/KbManager.jsx";
+import PromptSettings from "./components/PromptSettings.jsx";
+import { wrap, btn, btnGhost, muted } from "./styles.js";
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (loading) return <Center>Loading…</Center>;
+  if (!session) return <SignIn />;
+
+  return (
+    <div style={wrap}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 12 }}>
+        <h1 style={{ margin: 0, fontSize: 20 }}>Reply Drafter — Settings</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={muted}>{session.user.email}</span>
+          <button onClick={() => supabase.auth.signOut()} style={btnGhost}>Sign out</button>
+        </div>
+      </header>
+      <p style={muted}>These settings drive your Claude reply drafts in Gmail. You see only your own data.</p>
+      <PromptSettings email={session.user.email} />
+      <KbManager email={session.user.email} />
+    </div>
+  );
+}
+
+function SignIn() {
+  const signIn = () =>
+    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+  return (
+    <Center>
+      <div style={{ textAlign: "center" }}>
+        <h1 style={{ fontSize: 22 }}>Reply Drafter</h1>
+        <p style={muted}>Sign in to manage your knowledge base and reply tone.</p>
+        <button onClick={signIn} style={{ ...btn, padding: "10px 16px", marginTop: 8 }}>Sign in with Google</button>
+      </div>
+    </Center>
+  );
+}
+
+function Center({ children }) {
+  return <div style={{ ...wrap, display: "grid", placeItems: "center", minHeight: "80vh" }}>{children}</div>;
+}
