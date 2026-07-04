@@ -13,9 +13,9 @@ client's editable reply. Two clients now share ONE backend:
 
 - **Outlook add-in** (DONE, deployed) — Office.js task pane on the read surface + a compose
   surface; inserts via `displayReplyForm` / `body.setAsync`. Single Stanford M365 mailbox.
-- **Gmail add-on** (IN PROGRESS — scaffolded) — Apps Script + CardService for a small family
-  group (~2–10 users), each with their own knowledge base + prompt/tone, calling the same
-  `/draft`.
+- **Gmail add-on** (code DONE; Google-side rollout pending) — Apps Script + CardService for a
+  small family group (~2–10 users), each with their own knowledge base + prompt/tone, calling the
+  same `/draft`. Per-user config via a hosted dashboard (`https://reply-drafter-demo.vercel.app`).
 
 This repo is the single source of truth for the whole project — both clients and the backend.
 
@@ -29,8 +29,10 @@ This repo is the single source of truth for the whole project — both clients a
 - **Backend Phase 0 (multi-caller prep): DONE.** `/draft` has optional `x-api-key` auth
   (backward-compatible: same-origin OR valid key) and per-user `overrides` pass-through layered
   on the mounted-file defaults. Both are no-ops unless `API_SECRET` / `overrides` are present.
-- **Gmail + Supabase multi-user: ACTIVE.** Add-on scaffolded in `gmail-addon/`. Supabase-backed
-  per-user config + dashboard are the current frontier — see `docs/project-scope.md`.
+- **Gmail + Supabase multi-user: BUILT.** Supabase project + RLS live; backend per-user lookup
+  live on the VPS; dashboard deployed (`reply-drafter-demo.vercel.app`); Gmail add-on wired
+  (`gmail-addon/`, deploys via `clasp push`). Remaining work is the OPEN list in
+  `docs/project-scope.md` (clasp rollout, enable `API_SECRET`, product test, hardening).
 - **Voice from sent mail: POSTPONED** (no corpus yet; orthogonal to the Gmail track).
 
 ## Architecture
