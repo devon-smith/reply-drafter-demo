@@ -118,17 +118,18 @@ existing Outlook v1, Milestone 2A, and the mounted `prompt/`+`kb/` `/draft` are 
 5. **Deploy the dashboard** (Vercel/Netlify free, or Caddy on the VPS). _1–2h._ _Depends on:_
    2.3, 2.4.
 
-### Phase 3 — Gmail add-on wiring — **PLANNED** (scaffold exists in `gmail-addon/`)
+### Phase 3 — Gmail add-on wiring — **CODE DONE; Google-side rollout pending**
 
-1. **Send `userEmail` + `x-api-key`** on the `/draft` call. Prefer the Supabase-backed config
-   the backend now owns; keep `Settings.gs` UserProperties as a fallback. _2–3h._ _Depends on:_
-   1.1 (done), 1.2.4.
-2. **Thread context** — send `thread.getMessages()` concatenated. _2h._ _Depends on:_ 3.1. `[P]`
-   (Note: the current scaffold already builds quoted-history body in `buildDraftPayload`.)
-3. **Draft insertion + card polish** — confirm `createDraftReply` + `ComposeActionResponse`;
-   error states in the card. _2–3h._ _Depends on:_ 3.1.
-4. **Google-side rollout (YOURS):** `clasp login`/`create`/`push`; OAuth consent screen
-   (External, **In production**); add family as test users; install. _2–3h._ _Depends on:_ 3.1–3.3.
+1. **Send `userEmail` + `x-api-key`** on the `/draft` call. **DONE** — `Code.gs` sends the
+   signed-in Google email (lowercased) as `userEmail`; `Backend.gs` sends `DRAFT_SECRET` as the
+   `X-Api-Key` header. Backend prefers Supabase config; local `Settings.gs` is the fallback. ✅
+2. **Thread context** — **DONE**: `buildDraftPayload` concatenates `thread.getMessages()` as
+   quoted history behind the open message. ✅
+3. **Draft insertion + card polish** — **DONE**: `createDraftReply` + `ComposeActionResponse`;
+   errors surface as the draft body; Settings card notes it's a fallback to the dashboard. ✅
+4. **Google-side rollout (YOURS):** `clasp login`/`create`/`push`; set Script Properties
+   (`DRAFT_URL`, `DRAFT_SECRET`); OAuth consent screen (External, **In production**); add family
+   as test users; install. _2–3h._ _Depends on:_ 3.1–3.3. See `gmail-addon/README.md`.
 
 ### Phase 4 — Hardening — **PLANNED**
 

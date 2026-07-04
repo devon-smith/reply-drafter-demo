@@ -64,9 +64,14 @@ function onGenerateReply(e) {
     msg = GmailApp.getMessageById(e.gmail.messageId);
 
     var payload = buildDraftPayload(msg);
+
+    // userEmail drives the backend's per-user Supabase lookup (KB + prompt/tone
+    // managed in the dashboard). Lowercased to match how the dashboard/JWT stores
+    // it. The local Settings overrides are a FALLBACK the backend only applies
+    // when the user has no Supabase rows.
+    payload.userEmail = (Session.getActiveUser().getEmail() || '').toLowerCase();
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
-    payload.userEmail = Session.getActiveUser().getEmail();
 
     var result = callDraftBackend(payload);
     var reply = (result && result.reply ? String(result.reply) : '').trim();
