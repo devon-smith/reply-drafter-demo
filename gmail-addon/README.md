@@ -46,8 +46,15 @@ done from a code sandbox.
 3. **Set backend config** in Script Properties (Apps Script editor →
    Project Settings → Script Properties), or via the editor:
    - `DRAFT_URL` = `https://reply-devon.duckdns.org/draft`
-   - `DRAFT_SECRET` = a long random string (also add it to the backend once the
-     `X-Api-Key` check ships — see `docs/gmail-addon.md`, Phase 0)
+   - `DRAFT_SECRET` = the shared secret. **This must equal the backend's
+     `API_SECRET`** (in the VPS `.env`). If the backend has no `API_SECRET` set,
+     the add-on still works without a secret (same-origin/optional-auth), but set
+     both together when you want to require it.
+
+   Per-user config: the add-on sends the signed-in Google email as `userEmail`;
+   the backend looks up that user's KB + prompt/tone in Supabase (managed in the
+   dashboard) and personalizes the draft. No per-user config lives in the add-on
+   (the local Settings card is only a fallback).
 
 4. **Install for yourself** (development): Apps Script editor →
    **Deploy → Test deployments → Install**. Open Gmail, open a message, and the
@@ -89,5 +96,9 @@ overwrites the remote, `clasp pull` overwrites local.
   metadata (to/cc/bcc), not the draft's subject/body, so it can't see what you
   already typed. The reliable path is `createDraftReply` from the message-reading
   card, which this add-on uses. Add a compose trigger later only if needed.
-- **Backend override handling.** `Settings.gs` already sends `overrides` in the
-  request body; the backend ignores unknown fields until Phase 0 adds support.
+- **Compose-surface insert into an open draft.** Not wired; the reading-card
+  `createDraftReply` path covers the "reply to the message I'm reading" case.
+
+Backend override + per-user config handling is **live**: the backend applies a
+user's Supabase config (looked up by `userEmail`), falling back to the request
+`overrides` (this add-on's local Settings), then to the server's file defaults.

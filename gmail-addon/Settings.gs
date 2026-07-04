@@ -21,6 +21,9 @@ function onOpenSettings(e) {
 function buildSettingsCard_() {
   var p = PropertiesService.getUserProperties();
   var section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText(
+      '<i>Fallback settings.</i> Your main knowledge base and tone are managed in the ' +
+      'web dashboard. These local values are used only if you have no dashboard config.'))
     .addWidget(CardService.newTextInput()
       .setFieldName(OVR_TONE)
       .setTitle('Tone (optional)')
