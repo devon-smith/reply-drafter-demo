@@ -37,8 +37,16 @@ export default function App() {
 }
 
 function SignIn() {
+  // Return to the CURRENT origin (localhost:5173 in dev, the Vercel URL in prod) —
+  // never a hardcoded port. IMPORTANT: this origin must also be added in Supabase →
+  // Authentication → URL Configuration (Site URL + Redirect URLs); otherwise Supabase
+  // ignores redirectTo and falls back to its Site URL (which defaults to localhost port
+  // 3000 — the cause of the "redirect to the wrong port" bug).
   const signIn = () =>
-    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/` },
+    });
   return (
     <Center>
       <div style={{ textAlign: "center" }}>
