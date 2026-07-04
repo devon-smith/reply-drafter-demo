@@ -28,8 +28,14 @@ Supabase Auth needs the Google provider enabled and a Google OAuth client:
    application). Authorized redirect URI:
    `https://vpzzizeputfephcdbdpa.supabase.co/auth/v1/callback`
 2. **Supabase** → Authentication → Providers → **Google** → paste the client ID + secret, save.
-3. **Supabase** → Authentication → URL Configuration → add your dashboard origin(s) to
-   *Redirect URLs* (e.g. `http://localhost:5173` for dev, and your deployed URL).
+3. **Supabase** → Authentication → **URL Configuration** — this is what fixes the
+   "redirects to the wrong port after sign-in" bug. The app sends
+   `redirectTo: window.location.origin`, but Supabase only honors it when the origin is
+   allowlisted here; otherwise it falls back to **Site URL** (default `http://localhost:3000`).
+   Set both:
+   - **Site URL:** `https://reply-drafter-demo.vercel.app`
+   - **Redirect URLs:** add `https://reply-drafter-demo.vercel.app/**` (prod) **and**
+     `http://localhost:5173/**` (local dev).
 
 On first sign-in, a trigger creates the user's `app_user` row automatically, so their KB and
 prompt rows can be saved.
