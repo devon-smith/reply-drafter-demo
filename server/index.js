@@ -15,6 +15,18 @@ const KEY = process.env.ANTHROPIC_API_KEY;
 // keeps working exactly as before. See requireAuth() below.
 const API_SECRET = process.env.API_SECRET;
 
+// Optional Supabase per-user config store. Initialized only when both env vars
+// are present, so the server (and the Outlook path) still boot without it and
+// without the dependency installed. The service-role key bypasses RLS — it is
+// read here server-side only and must never reach any client.
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+  const { createClient } = require("@supabase/supabase-js");
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 // Editable prompt + knowledge base. Both live at the repo root and are mounted
 // as compose volumes, so they can be edited without a rebuild — we read them
 // FRESH on every request. Missing/empty/unreadable files fall back safely.
@@ -34,8 +46,47 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "..")));
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", model: MODEL, keyConfigured: Boolean(KEY) });
+  res.json({
+    status: "ok",
+    model: MODEL,
+    keyConfigured: Boolean(KEY),
+    supabaseConfigured: Boolean(supabase),
+  });
 });
+
+// Look up a user's per-user config in Supabase (service key, bypasses RLS).
+// Returns an overrides-shaped object { systemPromptAppend?, kb?, tone? } or null
+// when Supabase is unconfigured, the user is unknown, or on any error — the
+// caller then falls back to request-body overrides / file defaults.
+async function loadUserConfig(userEmail) {
+  if (!supabase || !userEmail) return null;
+  const email = String(userEmail).trim().toLowerCase();
+  if (!email) return null;
+  try {
+    const [kbRes, psRes] = await Promise.all([
+      supabase.from("kb_entry").select("title,content").eq("user_email", email),
+      supabase
+        .from("prompt_setting")
+        .select("system_prompt_append,tone")
+        .eq("user_email", email)
+        .maybeSingle(),
+    ]);
+    const kbRows = (kbRes && kbRes.data) || [];
+    const ps = (psRes && psRes.data) || null;
+    const kb = kbRows
+      .map((r) => (r.title ? `## ${r.title}\n${r.content}` : String(r.content || "")))
+      .join("\n\n")
+      .trim();
+    const out = {};
+    if (kb) out.kb = kb;
+    if (ps && ps.system_prompt_append) out.systemPromptAppend = ps.system_prompt_append;
+    if (ps && ps.tone) out.tone = ps.tone;
+    return Object.keys(out).length ? out : null;
+  } catch (e) {
+    console.error("supabase lookup failed:", (e && e.message) || e);
+    return null;
+  }
+}
 
 // Fallback used only if prompt/system.md is missing or empty. Keep in sync with
 // that file; the file is the source of truth in normal operation.
@@ -150,16 +201,22 @@ app.post("/draft", async (req, res) => {
     if (!KEY) {
       return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on the server." });
     }
-    const { from = "", subject = "", body = "", overrides } = req.body || {};
+    const { from = "", subject = "", body = "", userEmail = "", overrides } = req.body || {};
     if (!String(body).trim()) {
       return res.status(400).json({ error: "Email body is required." });
     }
     // Cap combined input. Raised to 16000 to fit quoted thread history in the body.
     const incoming = `From: ${from}\nSubject: ${subject}\n\n${body}`.slice(0, 16000);
 
-    // Fresh read of the editable prompt + KB on every request, plus any
-    // per-user overrides carried in the request body.
-    const system = await buildSystemPrompt(overrides);
+    // Per-user config: a user's Supabase rows (KB + prompt/tone) supersede any
+    // request-body overrides; with no user / no rows / no Supabase we fall back
+    // to the request overrides, then to the mounted file defaults.
+    const userConfig = await loadUserConfig(userEmail);
+    const effectiveOverrides = userConfig || overrides;
+
+    // Fresh read of the editable prompt + KB on every request, plus the
+    // effective per-user overrides.
+    const system = await buildSystemPrompt(effectiveOverrides);
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
