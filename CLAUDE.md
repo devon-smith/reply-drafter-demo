@@ -41,7 +41,7 @@ Gmail add-on (Apps Script) ─┤ POST /draft {from,subject,body,userEmail?,over
                             ▼
               reply-devon.duckdns.org  (Hetzner CPX21, 87.99.145.62)
                 Caddy :443  (auto-TLS, reverse proxy)
-                  └─> reply-server:3000  (Node 20 + Express, BEHIND_PROXY=1)
+                  └─> reply-server:3000  (Node 22 + Express, BEHIND_PROXY=1)
                         ├─ serves the Outlook static pane (taskpane.html/css, manifest, icons)
                         ├─ GET  /health  -> {status, model, keyConfigured}
                         └─ POST /draft   -> {reply}
@@ -54,7 +54,7 @@ Gmail add-on (Apps Script) ─┤ POST /draft {from,subject,body,userEmail?,over
 
 - **Backend:** `server/index.js` — Express, serves static files from the repo root
   (`express.static` ignores dotfiles, so `.env` is never served), `/draft` + `/health`. Calls
-  Anthropic with native `fetch` (Node 20 global), no SDK. Reads `prompt/system.md` + `kb/*.md`
+  Anthropic with native `fetch` (Node 22 global), no SDK. Reads `prompt/system.md` + `kb/*.md`
   fresh per request (mounted volumes → editable without a rebuild).
 - **Outlook add-in:** self-contained `taskpane.html` (Office.js + inline script), auto-runs on
   open. Read surface uses `displayReplyForm`; compose surface uses `body.setAsync`. No Graph.

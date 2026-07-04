@@ -157,7 +157,7 @@ existing Outlook v1, Milestone 2A, and the mounted `prompt/`+`kb/` `/draft` are 
 
 | Layer | Choice | Justification |
 |-------|--------|---------------|
-| Backend (shared) | Node 20 + Express, native `fetch` | Existing generation core; both clients call `/draft`; minimal deps. |
+| Backend (shared) | Node 22 + Express, native `fetch` | Existing generation core; both clients call `/draft`; minimal deps. |
 | LLM | Anthropic Messages API — Sonnet | Reply quality; owner's key, server-side. |
 | Per-user store | Supabase (Postgres + Auth + RLS) | Managed Postgres + Google auth + row isolation out of the box. |
 | Runtime DB client | `@supabase/supabase-js` (service role, on VPS) | Backend lookup bypassing RLS server-side; key in `.env`. |
