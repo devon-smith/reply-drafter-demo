@@ -135,27 +135,50 @@ async function loadKnowledgeBase() {
   }
 }
 
-// Assemble the final system prompt: editable base + optional KB facts block +
-// optional per-user overrides. With no overrides, output is identical to before.
+// Assemble the final system prompt: editable base + optional per-user overrides
+// + KB facts. Precedence on conflicting signals: TONE > KB style notes > KB facts.
+// The tone directive is placed prominently (right after the base) and marked
+// authoritative so it wins over any "friendly/casual/brief" style note in the KB.
+// With no overrides, output is identical to files-only.
 async function buildSystemPrompt(overrides) {
   const base = await loadSystemPrompt();
   const kb = await loadKnowledgeBase();
+
+  const str = (v) => (typeof v === "string" ? v.trim() : "");
+  const hasOvr = overrides && typeof overrides === "object";
+  const tone = hasOvr ? str(overrides.tone).slice(0, OVR_TONE_CAP) : "";
+  const append = hasOvr ? str(overrides.systemPromptAppend).slice(0, OVR_APPEND_CAP) : "";
+  const userKb = hasOvr ? str(overrides.kb).slice(0, OVR_KB_CAP) : "";
+
   let out = base;
-  if (kb) {
+
+  // TONE — highest precedence, prominent, authoritative over KB style notes.
+  if (tone) {
     out +=
-      "\n\n---\nKnowledge base — facts about the user and their context. Use these " +
-      "when relevant to the reply; do not invent details beyond them.\n\n" +
-      kb;
+      "\n\n===\nTONE — Write the reply in a " + tone + " register. This tone directive is " +
+      "AUTHORITATIVE and overrides any conflicting style note in the knowledge base below " +
+      '(e.g. "friendly", "casual", "brief"): when the tone here and a KB note disagree on ' +
+      "style, follow THIS tone. The knowledge base is for facts and context, not for " +
+      "overriding this style.";
   }
 
-  if (overrides && typeof overrides === "object") {
-    const str = (v) => (typeof v === "string" ? v.trim() : "");
-    const tone = str(overrides.tone).slice(0, OVR_TONE_CAP);
-    const append = str(overrides.systemPromptAppend).slice(0, OVR_APPEND_CAP);
-    const userKb = str(overrides.kb).slice(0, OVR_KB_CAP);
-    if (tone) out += "\n\n---\nTone: write the reply in this tone/style: " + tone;
-    if (append) out += "\n\n---\nAdditional instructions from the user:\n" + append;
-    if (userKb) out += "\n\n---\nAdditional knowledge base facts for this user:\n" + userKb;
+  if (append) {
+    out += "\n\n---\nAdditional instructions from the user:\n" + append;
+  }
+
+  // KB blocks come AFTER the tone directive so tone wins on style conflicts.
+  if (kb) {
+    out +=
+      "\n\n---\nKnowledge base — facts about the user and their context. Use these for facts " +
+      "when relevant; do not invent details beyond them. Any style note here yields to the " +
+      "TONE directive above.\n\n" +
+      kb;
+  }
+  if (userKb) {
+    out +=
+      "\n\n---\nAdditional knowledge base facts for this user (facts and context, not style; " +
+      "the TONE directive above wins on style):\n" +
+      userKb;
   }
 
   return out.slice(0, SYSTEM_CAP);
