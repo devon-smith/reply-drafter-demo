@@ -135,11 +135,13 @@ async function loadKnowledgeBase() {
   }
 }
 
-// Assemble the final system prompt: editable base + optional per-user overrides
-// + KB facts. Precedence on conflicting signals: TONE > KB style notes > KB facts.
-// The tone directive is placed prominently (right after the base) and marked
-// authoritative so it wins over any "friendly/casual/brief" style note in the KB.
-// With no overrides, output is identical to files-only.
+// Assemble the final system prompt: optional TONE directive + editable base +
+// optional per-user overrides + KB facts. Precedence on conflicting signals:
+// TONE > KB style notes > KB facts. The tone directive leads the prompt (primacy)
+// AND is echoed at the very end (recency), and it explicitly overrides the exact
+// competing words ("friendly/casual/brief/concise"), so it reliably wins over
+// style notes in the base, the append, or the KB. With no tone, the output is the
+// same files-only prompt as before (no tone framing added).
 async function buildSystemPrompt(overrides) {
   const base = await loadSystemPrompt();
   const kb = await loadKnowledgeBase();
@@ -150,36 +152,35 @@ async function buildSystemPrompt(overrides) {
   const append = hasOvr ? str(overrides.systemPromptAppend).slice(0, OVR_APPEND_CAP) : "";
   const userKb = hasOvr ? str(overrides.kb).slice(0, OVR_KB_CAP) : "";
 
-  let out = base;
+  const toneDirective = tone
+    ? "TONE (HIGHEST PRIORITY) — Write the entire reply in a " + tone + " register. This " +
+      "instruction outranks every other style cue and OVERRIDES any guidance that says " +
+      '"friendly", "casual", "brief", "concise", or similar, wherever it appears (the base ' +
+      "instructions, the user instructions, or the knowledge base). Match this register even " +
+      "when other notes suggest a different style."
+    : "";
+  const kbStyleNote = tone ? " Any note here about writing style yields to the TONE directive." : "";
 
-  // TONE — highest precedence, prominent, authoritative over KB style notes.
-  if (tone) {
-    out +=
-      "\n\n===\nTONE — Write the reply in a " + tone + " register. This tone directive is " +
-      "AUTHORITATIVE and overrides any conflicting style note in the knowledge base below " +
-      '(e.g. "friendly", "casual", "brief"): when the tone here and a KB note disagree on ' +
-      "style, follow THIS tone. The knowledge base is for facts and context, not for " +
-      "overriding this style.";
-  }
+  let out = "";
+  // Lead with the tone directive (primacy).
+  if (toneDirective) out += toneDirective + "\n\n===\n\n";
+  out += base;
 
   if (append) {
     out += "\n\n---\nAdditional instructions from the user:\n" + append;
   }
-
-  // KB blocks come AFTER the tone directive so tone wins on style conflicts.
   if (kb) {
     out +=
       "\n\n---\nKnowledge base — facts about the user and their context. Use these for facts " +
-      "when relevant; do not invent details beyond them. Any style note here yields to the " +
-      "TONE directive above.\n\n" +
-      kb;
+      "when relevant; do not invent details beyond them." + kbStyleNote + "\n\n" + kb;
   }
   if (userKb) {
     out +=
-      "\n\n---\nAdditional knowledge base facts for this user (facts and context, not style; " +
-      "the TONE directive above wins on style):\n" +
-      userKb;
+      "\n\n---\nAdditional knowledge base facts for this user (facts and context)." +
+      kbStyleNote + "\n\n" + userKb;
   }
+  // Echo the tone directive at the very end (recency) so it also gets last word.
+  if (toneDirective) out += "\n\n===\nREMINDER — " + toneDirective;
 
   return out.slice(0, SYSTEM_CAP);
 }
