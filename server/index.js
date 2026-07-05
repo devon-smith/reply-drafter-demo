@@ -242,6 +242,22 @@ app.post("/draft", async (req, res) => {
     // effective per-user overrides.
     const system = await buildSystemPrompt(effectiveOverrides);
 
+    // Weave the tone directly into the drafting instruction in the USER turn — a
+    // style constraint stated next to the task is followed far more reliably than
+    // one in the system prompt, and it outweighs the base's "concise/professional"
+    // default and any "friendly/brief" KB note.
+    const toneVal =
+      effectiveOverrides && typeof effectiveOverrides === "object" &&
+      typeof effectiveOverrides.tone === "string"
+        ? effectiveOverrides.tone.trim().slice(0, OVR_TONE_CAP)
+        : "";
+    const toneInstruction = toneVal
+      ? ` Write the reply in a ${toneVal} register — this style is REQUIRED and takes ` +
+        `priority over any default "concise/professional" phrasing and over any ` +
+        `"friendly/casual/brief" note; do not default to a warm or casual style unless the ` +
+        `tone itself is casual.`
+      : "";
+
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -253,7 +269,9 @@ app.post("/draft", async (req, res) => {
         model: MODEL,
         max_tokens: 1024,
         system,
-        messages: [{ role: "user", content: `Draft a reply to this email:\n\n${incoming}` }],
+        messages: [
+          { role: "user", content: `Draft a reply to this email.${toneInstruction}\n\n${incoming}` },
+        ],
       }),
     });
 
