@@ -28,6 +28,14 @@ function brandedHeader_(subtitle) {
     .setImageStyle(CardService.ImageStyle.CIRCLE);
 }
 
+// Pull a display name out of a "Name <email>" From header, falling back to the
+// raw value (or a generic label) so the card never shows an empty line.
+function senderName_(from) {
+  if (!from) return 'this message';
+  var m = String(from).match(/^\s*"?([^"<]+?)"?\s*</);
+  return (m ? m[1] : from).trim() || 'this message';
+}
+
 // Homepage card — shown when the add-on is opened without a message context.
 function onHomepage(e) {
   var section = CardService.newCardSection()
@@ -62,14 +70,34 @@ function onGmailMessageOpen(e) {
     .setBackgroundColor(ACCENT)
     .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT);
 
-  var section = CardService.newCardSection()
+  var section = CardService.newCardSection();
+
+  // Contextual "replying to" line so the card reflects the actual email.
+  // Best-effort: a metadata read failure must never block the card.
+  try {
+    if (e && e.gmail && e.gmail.accessToken) {
+      GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken);
+      var m = GmailApp.getMessageById(e.gmail.messageId);
+      section.addWidget(CardService.newDecoratedText()
+        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.PERSON))
+        .setTopLabel('Replying to')
+        .setText(senderName_(m.getFrom()))
+        .setBottomLabel(m.getSubject() || '(no subject)')
+        .setWrapText(true));
+      section.addWidget(CardService.newDivider());
+    }
+  } catch (ignore) {}
+
+  section
     .addWidget(CardService.newDecoratedText()
       .setText('Draft a reply with Claude')
-      .setBottomLabel('You can edit it before sending.')
+      .setBottomLabel('Opens in a compose window so you can edit before sending.')
       .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
       .setWrapText(true))
-    .addWidget(CardService.newDivider())
-    .addWidget(CardService.newButtonSet().addButton(generateButton));
+    .addWidget(CardService.newButtonSet().addButton(generateButton))
+    .addWidget(CardService.newTextButton()
+      .setText('Settings')
+      .setOnClickAction(CardService.newAction().setFunctionName('onOpenSettings')));
 
   return CardService.newCardBuilder()
     .setHeader(brandedHeader_('Powered by Claude'))
