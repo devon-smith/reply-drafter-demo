@@ -95,9 +95,11 @@ Gmail add-on (Apps Script) ─┤ POST /draft {from,subject,body,userEmail?,over
    `DRAFT_SECRET` (in Script Properties) and `DRAFT_URL`.
 3. **No Microsoft Graph.** The Outlook pane uses Office.js current-item APIs only. Thread
    context comes from the quoted body, not Graph. Gmail uses its native thread API instead.
-4. **No restricted Gmail scopes.** The Gmail add-on uses only `gmail.addons.*` +
-   `script.external_request`. Adding a broad scope (`gmail.readonly`, etc.) triggers Google's
-   CASA assessment — avoid it.
+4. **No restricted Gmail scopes.** The Gmail add-on uses only `gmail.addons.*`,
+   `script.external_request`, and `userinfo.email` (the last is non-sensitive — needed for
+   `Session.getActiveUser().getEmail()`, which drives the per-user Supabase lookup; it does NOT
+   trigger CASA). Adding a broad/restricted Gmail scope (`gmail.readonly`, etc.) triggers
+   Google's CASA assessment — avoid it.
 5. **Native `fetch`, not `@anthropic-ai/sdk`.** Keep the dependency tree minimal (currently
    `express`; `@supabase/supabase-js` is the only planned runtime add).
 6. **Server listens plain HTTP when `BEHIND_PROXY=1`.** Caddy owns TLS. Do NOT reintroduce
