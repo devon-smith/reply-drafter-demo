@@ -82,7 +82,7 @@ export default function Usage() {
   return (
     <section style={card}>
       <h2 style={h2}>Usage &amp; cost</h2>
-      {error && <p style={{ color: "#b00", fontSize: 14 }}>Couldn't load usage: {error}</p>}
+      {error && <p style={{ color: "var(--danger)", fontSize: 14 }}>Couldn't load usage: {error}</p>}
       {empty ? (
         <p style={muted}>No usage yet — generate a reply and it'll show up here.</p>
       ) : (
@@ -96,12 +96,12 @@ export default function Usage() {
             <div style={{ ...muted, marginBottom: 4 }}>
               Today: {fmtInt(today.tokens)} / {fmtInt(DAILY_TOKEN_CAP)} tokens ({capPct}% of daily cap)
             </div>
-            <div style={{ height: 8, background: "#eee", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ height: 8, background: "var(--hairline)", borderRadius: 4, overflow: "hidden" }}>
               <div
                 style={{
                   width: capPct + "%",
                   height: "100%",
-                  background: capPct >= 100 ? "#b00" : "var(--accent)",
+                  background: capPct >= 100 ? "var(--danger)" : "var(--accent)",
                 }}
               />
             </div>
@@ -115,7 +115,7 @@ export default function Usage() {
                 alignItems: "flex-end",
                 gap: 2,
                 height: 80,
-                borderBottom: "1px solid #e5e5e5",
+                borderBottom: "1px solid var(--hairline)",
               }}
             >
               {days.map((d) => {
@@ -148,8 +148,8 @@ export default function Usage() {
 
 function TileGroup({ label, s }) {
   return (
-    <div style={{ flex: "1 1 240px", border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-      <div style={{ fontSize: 13, color: "#444", marginBottom: 8 }}>{label}</div>
+    <div style={{ flex: "1 1 240px", background: "var(--glass-bg-strong)", border: "1px solid var(--glass-border)", borderRadius: "var(--radius-sm)", padding: 14 }}>
+      <div style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 8 }}>{label}</div>
       <div style={{ display: "flex", gap: 16 }}>
         <Stat n={fmtInt(s.requests)} label="requests" />
         <Stat n={fmtInt(s.tokens)} label="tokens" />
@@ -162,8 +162,8 @@ function TileGroup({ label, s }) {
 function Stat({ n, label }) {
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 600, color: "#1a1a1a" }}>{n}</div>
-      <div style={{ fontSize: 12, color: "#666" }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 600, color: "var(--ink)" }}>{n}</div>
+      <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>{label}</div>
     </div>
   );
 }
