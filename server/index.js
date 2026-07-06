@@ -46,6 +46,13 @@ const numEnv = (v, d) => (v !== undefined && v !== "" && !Number.isNaN(Number(v)
 const PRICE_INPUT_PER_MTOK = numEnv(process.env.PRICE_INPUT_PER_MTOK, 3);
 const PRICE_OUTPUT_PER_MTOK = numEnv(process.env.PRICE_OUTPUT_PER_MTOK, 15);
 
+// Cost guardrails (per user, env-configurable). Daily caps are Supabase-backed
+// (usage_event); the short-window rate limit is in-memory and resets on restart.
+const DAILY_TOKEN_CAP = numEnv(process.env.DAILY_TOKEN_CAP, 500000);
+const DAILY_REQUEST_CAP = numEnv(process.env.DAILY_REQUEST_CAP, 100);
+const RATE_LIMIT_PER_MIN = numEnv(process.env.RATE_LIMIT_PER_MIN, 10);
+const rlHits = new Map(); // rate-limit key -> array of request timestamps (ms)
+
 app.use(express.json({ limit: "1mb" }));
 
 // Serve the add-in's static files (taskpane.html, css, manifest, icons) from the
@@ -159,6 +166,58 @@ async function logUsage(userEmail, usage, model) {
     if (error) console.error("usage log failed:", error.message);
   } catch (e) {
     console.error("usage log failed:", (e && e.message) || e);
+  }
+}
+
+// Short-window in-memory rate limit. Keyed by userEmail when present, else the
+// client IP (X-Forwarded-For from Caddy, falling back to req.ip). Resets on restart.
+function rateKey(req, userEmail) {
+  const email = String(userEmail || "").trim().toLowerCase();
+  if (email) return "u:" + email;
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return "ip:" + (xff || req.ip || "unknown");
+}
+function rateLimited(key) {
+  const now = Date.now();
+  const windowStart = now - 60000;
+  const arr = (rlHits.get(key) || []).filter((t) => t > windowStart);
+  if (arr.length >= RATE_LIMIT_PER_MIN) {
+    rlHits.set(key, arr);
+    return true;
+  }
+  arr.push(now);
+  rlHits.set(key, arr);
+  return false;
+}
+
+// Per-user daily cap over the UTC day, Supabase-backed. Returns true if the user
+// is over the token OR request cap. Only applies to identified users; fails OPEN
+// on any error so a DB hiccup never blocks legitimate drafting.
+async function overDailyCap(userEmail) {
+  if (!supabase) return false;
+  const email = String(userEmail || "").trim().toLowerCase();
+  if (!email) return false;
+  try {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    const { data, error } = await supabase
+      .from("usage_event")
+      .select("input_tokens,output_tokens")
+      .eq("user_email", email)
+      .gte("ts", start.toISOString());
+    if (error) {
+      console.error("daily cap check failed:", error.message);
+      return false;
+    }
+    const rows = data || [];
+    const tokens = rows.reduce(
+      (s, r) => s + (Number(r.input_tokens) || 0) + (Number(r.output_tokens) || 0),
+      0
+    );
+    return rows.length >= DAILY_REQUEST_CAP || tokens > DAILY_TOKEN_CAP;
+  } catch (e) {
+    console.error("daily cap check failed:", (e && e.message) || e);
+    return false;
   }
 }
 
@@ -326,6 +385,18 @@ app.post("/draft", async (req, res) => {
     if (!String(body).trim()) {
       return res.status(400).json({ error: "Email body is required." });
     }
+
+    // Cost guardrails — both return 429 and SKIP the Claude call. Clients surface
+    // the { error } message (Gmail card / Outlook pane) rather than crashing.
+    if (rateLimited(rateKey(req, userEmail))) {
+      return res
+        .status(429)
+        .json({ error: "too many requests, please wait a minute and try again" });
+    }
+    if (await overDailyCap(userEmail)) {
+      return res.status(429).json({ error: "daily limit reached, try again tomorrow" });
+    }
+
     // Cap combined input. Raised to 16000 to fit quoted thread history in the body.
     const incoming = `From: ${from}\nSubject: ${subject}\n\n${body}`.slice(0, 16000);
 
