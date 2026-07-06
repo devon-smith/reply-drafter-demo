@@ -40,6 +40,12 @@ const OVR_TONE_CAP = 200; // max chars of per-user tone directive
 const SYSTEM_CAP = 32000; // hard cap on the fully assembled system prompt
 const KB_GUIDANCE_CAP = 16000; // max combined chars of per-user style+examples+facts (kb_entry + kb_file)
 
+// Anthropic pricing (USD per 1M tokens) for usage_event.est_cost_usd. Override
+// per-model via env; defaults are Sonnet-ish placeholders.
+const numEnv = (v, d) => (v !== undefined && v !== "" && !Number.isNaN(Number(v)) ? Number(v) : d);
+const PRICE_INPUT_PER_MTOK = numEnv(process.env.PRICE_INPUT_PER_MTOK, 3);
+const PRICE_OUTPUT_PER_MTOK = numEnv(process.env.PRICE_OUTPUT_PER_MTOK, 15);
+
 app.use(express.json({ limit: "1mb" }));
 
 // Serve the add-in's static files (taskpane.html, css, manifest, icons) from the
@@ -131,6 +137,29 @@ function capGuidance(parts, budget) {
     else { map[p.key] = t; remaining -= t.length; }
   }
   return { map, clipped };
+}
+
+// Durable usage/cost logging. Inserts one usage_event via the service key after a
+// successful Claude call. Fire-and-forget and fully guarded — a logging failure
+// must NEVER affect the /draft response.
+async function logUsage(userEmail, usage, model) {
+  if (!supabase || !usage) return;
+  try {
+    const inTok = Number(usage.input_tokens) || 0;
+    const outTok = Number(usage.output_tokens) || 0;
+    const est = (inTok / 1e6) * PRICE_INPUT_PER_MTOK + (outTok / 1e6) * PRICE_OUTPUT_PER_MTOK;
+    const email = String(userEmail || "").trim().toLowerCase() || null;
+    const { error } = await supabase.from("usage_event").insert({
+      user_email: email,
+      input_tokens: inTok,
+      output_tokens: outTok,
+      model,
+      est_cost_usd: Number(est.toFixed(6)),
+    });
+    if (error) console.error("usage log failed:", error.message);
+  } catch (e) {
+    console.error("usage log failed:", (e && e.message) || e);
+  }
 }
 
 // Fallback used only if prompt/system.md is missing or empty. Keep in sync with
@@ -351,6 +380,8 @@ app.post("/draft", async (req, res) => {
     const reply = (data.content && data.content[0] && data.content[0].text || "").trim();
     if (!reply) return res.status(502).json({ error: "Empty reply from Claude." });
     res.json({ reply });
+    // Fire-and-forget usage/cost logging — never delays or breaks the response.
+    logUsage(userEmail, data.usage, MODEL).catch(() => {});
   } catch (e) {
     res.status(500).json({ error: "Server error", detail: String((e && e.message) || e) });
   }
