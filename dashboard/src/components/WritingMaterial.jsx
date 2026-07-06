@@ -28,40 +28,42 @@ export default function WritingMaterial({ email }) {
 
   async function onUpload(e) {
     e.preventDefault();
-    const file = fileRef.current && fileRef.current.files && fileRef.current.files[0];
-    if (!file) return;
+    const files = fileRef.current && fileRef.current.files ? Array.from(fileRef.current.files) : [];
+    if (!files.length) return;
     setBusy(true);
-    try {
-      setStatus("Reading “" + file.name + "”…");
-      const text = (await extractText(file)).slice(0, EXTRACT_CAP);
-      if (!text) {
-        setStatus("Couldn't read any text from that file.");
-        setBusy(false);
-        return;
+    let added = 0;
+    const failed = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        setStatus(`Reading “${file.name}”… (${i + 1}/${files.length})`);
+        const text = (await extractText(file)).slice(0, EXTRACT_CAP);
+        if (!text) { failed.push(`${file.name} (no text)`); continue; }
+        // Store under the user's own path (RLS: first segment = email); index +
+        // timestamp keeps paths unique even within one batch.
+        const path = `${email}/${Date.now()}-${i}-${file.name}`;
+        const up = await supabase.storage.from("kb-files").upload(path, file, { upsert: false });
+        if (up.error) throw up.error;
+        const ins = await supabase.from("kb_file").insert({
+          user_email: email,
+          filename: file.name,
+          storage_path: path,
+          category: "style",
+          extracted_text: text,
+        });
+        if (ins.error) throw ins.error;
+        added++;
+      } catch (err) {
+        failed.push(`${file.name}: ${err && err.message ? err.message : err}`);
       }
-      // Store the raw file under the user's own path (RLS: first segment = email).
-      const path = email + "/" + Date.now() + "-" + file.name;
-      setStatus("Uploading…");
-      const up = await supabase.storage.from("kb-files").upload(path, file, { upsert: false });
-      if (up.error) throw up.error;
-
-      const ins = await supabase.from("kb_file").insert({
-        user_email: email,
-        filename: file.name,
-        storage_path: path,
-        category: "style",
-        extracted_text: text,
-      });
-      if (ins.error) throw ins.error;
-
-      if (fileRef.current) fileRef.current.value = "";
-      setStatus("Added “" + file.name + "”.");
-      load();
-    } catch (err) {
-      setStatus("Error: " + (err && err.message ? err.message : err));
-    } finally {
-      setBusy(false);
     }
+    if (fileRef.current) fileRef.current.value = "";
+    setStatus(
+      `Added ${added} file${added === 1 ? "" : "s"}` +
+        (failed.length ? ` — failed: ${failed.join("; ")}` : ".")
+    );
+    setBusy(false);
+    load();
   }
 
   async function remove(row) {
@@ -89,7 +91,7 @@ export default function WritingMaterial({ email }) {
         {rows.length === 0 && <li style={{ color: "#999" }}>No files yet.</li>}
       </ul>
       <form onSubmit={onUpload}>
-        <input ref={fileRef} type="file" accept=".txt,.md,.text,.pdf" disabled={busy} />
+        <input ref={fileRef} type="file" multiple accept=".txt,.md,.text,.pdf" disabled={busy} />
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
           <button type="submit" style={btn} disabled={busy}>{busy ? "Working…" : "Upload"}</button>
           <span style={muted}>{status}</span>
