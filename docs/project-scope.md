@@ -33,23 +33,31 @@ Gmail add-on  (Apps Script) ─┤ POST /draft            https://reply-drafter-
 | Supabase (Phase 0.2) | Project `reply-drafter` (us-east-1); `app_user`/`kb_entry`/`prompt_setting`; RLS verified both ways (owner-only reads, service role sees all, cross-user write blocked); advisors clean. Migrations in `supabase/migrations/`. |
 | Backend per-user (Phase 1.2) | `@supabase/supabase-js` service-role lookup by `userEmail`; Supabase config > request overrides > file defaults. `/health` reports `supabaseConfigured`. **Live on the VPS**, verified end-to-end (personalized draft returned). |
 | Dashboard (Phase 2) | React+Vite SPA; Google sign-in; KB + prompt/tone CRUD under RLS. **Deployed: `https://reply-drafter-demo.vercel.app`** (build succeeded, env set, prod origin authorized in GCP). |
-| Gmail add-on code (Phase 3) | `gmail-addon/` sends `userEmail` (lowercased) + `x-api-key`, thread context, inserts via `createDraftReply` + `ComposeActionResponse`; local Settings = fallback. Verified against the live backend. Deploys via `clasp push`. |
+| Gmail add-on code (Phase 3) | `gmail-addon/` sends `userEmail` (lowercased) + `x-api-key`, thread context, inserts via `createDraftReply` + `ComposeActionResponse`; local Settings = fallback. Renamed "Reply Drafter", branded/contextual card ("Replying to …"), `userinfo.email` scope (non-CASA). Verified live. Deploys via `clasp push`. |
+| Usage & cost (Phase 4) | Durable `usage_event` metering (service-key insert, RLS self-read); dashboard **Usage & cost** page (Today/This-month tiles, cap bar, 30-day chart); verified writing + reading live. |
+| Cost guardrails | Per-user UTC **daily token + request caps** (Supabase-backed, fail-open) and an in-memory **rate limit**; each returns a typed `429` the clients surface. Env-tunable (`DAILY_TOKEN_CAP`, `DAILY_REQUEST_CAP`, `RATE_LIMIT_PER_MIN`). |
+| Dashboard redesign | Dark editorial **sidebar console** (Hanken Grotesk + JetBrains Mono, violet accent), tabbed nav with 1–4/⌘K/⌘S keys, breadcrumb + live endpoint pill, tone preset chips. Live on Vercel. |
+| Boot self-check | `server/index.js` logs the NAMES of missing/placeholder/malformed required env at startup (catches unset key, open `/draft`, masked non-JWT service key). |
 
 ## OPEN — the only remaining work
 
-- **OPEN-1 — Dashboard prod sign-in check.** Click "Sign in with Google" on
-  `https://reply-drafter-demo.vercel.app`, confirm OAuth completes and lands on the settings page.
-  (Local sign-in worked; prod origin is authorized — this catches any missed redirect/origin.)
-- **OPEN-2 — Ship the Gmail add-on.** `clasp push` + install for yourself, then roll out to family
-  (GCP consent screen External + In production, add test users). See `gmail-addon/README.md`.
-- **OPEN-3 — Enable `API_SECRET` before sharing.** Until set, `/draft` is open to anyone with the
-  URL (they spend the Anthropic budget). Set `API_SECRET` on the VPS + the matching `DRAFT_SECRET`
-  Script Property. Outlook keeps working (same-origin rule). **Do this before OPEN-2 reaches anyone.**
-- **OPEN-4 — Full product test.** Change tone in the deployed dashboard → open a real Gmail message
-  → Generate reply → confirm the draft reflects the change. Exercises the whole stack.
-- **OPEN-5 — Hardening + privacy note.** Per-user rate limit / daily spend cap on `/draft`;
-  `.env` perms `600`; rotate the service_role key (it was pasted in a session transcript); a short
-  family privacy note (email flows to the VPS + Anthropic; what's stored in Supabase; deletion).
+Most of the original OPEN list is now DONE (see the audit): **OPEN-1** prod sign-in ✅ (Devon
+signed in live on Vercel), **OPEN-2** add-on shipped ✅ (`clasp push`, installed, drafting),
+**OPEN-3** `API_SECRET` enforced ✅ (keyless `/draft` → `401`, verified), **OPEN-4** full product
+test ✅ (personalized live draft + `usage_event` written), rate-limit/daily-cap ✅, service_role key
+rotated ✅. What genuinely remains:
+
+- **OPEN-A — Family rollout (owner-side).** GCP OAuth consent screen: add each family member as a
+  **Test user** (works now; refresh tokens expire ~7 days), or submit **"In production"** to drop
+  the weekly re-auth (no CASA — scopes are add-on-scoped + `userinfo.email`). Then each member
+  installs the add-on and fills in tone / writing material / KB in the dashboard.
+- **OPEN-B — Privacy note.** A short family-facing note: message text flows to the VPS → Anthropic
+  to draft; tone/KB/files live in Supabase under per-user RLS; how to delete.
+- **OPEN-C — `.env` perms `600`** on the VPS (defense-in-depth; not served, but tighten anyway).
+- **OPEN-D — Deploy the audit fixes.** Rebuild the VPS image so the boot self-check ships
+  (`git pull && docker compose up -d --build`), and merge the audit PR so `main` == deployed.
+
+See `AUDIT.md` for the full pre-family verification pass and the family-ready verdict.
 
 ## POSTPONED
 
