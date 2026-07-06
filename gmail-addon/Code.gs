@@ -94,8 +94,15 @@ function onGenerateReply(e) {
     // userEmail drives the backend's per-user Supabase lookup (KB + prompt/tone
     // managed in the dashboard). Lowercased to match how the dashboard/JWT stores
     // it. The local Settings overrides are a FALLBACK the backend only applies
-    // when the user has no Supabase rows.
-    payload.userEmail = (Session.getActiveUser().getEmail() || '').toLowerCase();
+    // when the user has no Supabase rows. Best-effort: getEmail() needs the
+    // userinfo.email scope, so guard it — a missing scope should degrade to a
+    // non-personalized draft, never abort the whole reply.
+    try {
+      var addr = (Session.getActiveUser().getEmail() || '').toLowerCase();
+      if (addr) payload.userEmail = addr;
+    } catch (scopeErr) {
+      // no userinfo.email scope granted yet — draft with file/local defaults
+    }
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
 
