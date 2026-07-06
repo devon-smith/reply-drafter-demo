@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient.js";
 import KbManager from "./components/KbManager.jsx";
 import PromptSettings from "./components/PromptSettings.jsx";
+import WritingMaterial from "./components/WritingMaterial.jsx";
 import { wrap, btn, btnGhost, muted } from "./styles.js";
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
       </header>
       <p style={muted}>These settings drive your Claude reply drafts in Gmail. You see only your own data.</p>
       <PromptSettings email={session.user.email} />
+      <WritingMaterial email={session.user.email} />
       <KbManager email={session.user.email} />
     </div>
   );
