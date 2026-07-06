@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient.js";
 import { extractText } from "../extract.js";
-import { card, h2, btn, btnGhost, muted } from "../styles.js";
+import { card, kicker, h2, btn, btnGhost, muted, mono } from "../styles.js";
 
 // Upload writing material (past emails, a style note, a doc). We extract the text
 // in the browser and store it so drafts sound like you — no categories to pick;
@@ -76,19 +76,20 @@ export default function WritingMaterial({ email }) {
 
   return (
     <section style={card}>
+      <span style={kicker}>Voice</span>
       <h2 style={h2}>Writing material</h2>
       <p style={{ ...muted, marginTop: 0 }}>
         Upload past emails or a note about how you write (.txt, .md, or .pdf). Drafts will pick up
         your voice. No need to label anything.
       </p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <ul style={{ listStyle: "none", padding: 0, margin: "16px 0" }}>
         {rows.map((r) => (
-          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--hairline)" }}>
-            <span>{r.filename}</span>
+          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--hairline)" }}>
+            <span style={{ ...mono, fontSize: 13, color: "var(--ink-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.filename}</span>
             <button onClick={() => remove(r)} style={btnGhost}>Delete</button>
           </li>
         ))}
-        {rows.length === 0 && <li style={{ color: "var(--ink-muted)" }}>No files yet.</li>}
+        {rows.length === 0 && <li style={{ color: "var(--ink-muted)", padding: "10px 0" }}>No files yet.</li>}
       </ul>
       <form onSubmit={onUpload}>
         <input ref={fileRef} type="file" multiple accept=".txt,.md,.text,.pdf" disabled={busy} />
