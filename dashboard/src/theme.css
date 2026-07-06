@@ -1,69 +1,118 @@
-/* Liquid-glass design system (tokens + shell). Styling only. */
+/* Dark editorial design system (tokens + shell). Styling only. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* restrained accent */
-  --accent: #5b6cf0;
-  --accent-strong: #4a59e0;
-  --accent-ring: rgba(91, 108, 240, 0.30);
+  /* type */
+  --font-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, monospace;
 
-  /* ink (kept dark for legible contrast over translucent light glass) */
-  --ink: #1c2333;
-  --ink-2: #46506a;
-  --ink-muted: #6b7691;
+  /* single accent — violet-periwinkle */
+  --accent: #7c74ff;
+  --accent-strong: #6a61f5;
+  --accent-soft: rgba(124, 116, 255, 0.14);
+  --accent-ring: rgba(124, 116, 255, 0.35);
 
-  /* glass surfaces */
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-strong: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.65);
-  --glass-shadow: 0 1px 1px rgba(16, 24, 40, 0.04), 0 10px 30px rgba(16, 24, 40, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  --blur: 20px;
+  /* status */
+  --ok: #4ade80;
+  --danger: #f2555a;
 
-  --radius: 16px;
-  --radius-sm: 10px;
-  --field-bg: rgba(255, 255, 255, 0.5);
-  --field-border: rgba(28, 35, 51, 0.14);
-  --hairline: rgba(28, 35, 51, 0.08);
-  --danger: #c0362c;
+  /* surfaces */
+  --bg: #0a0a0d;
+  --surface: #101116;
+  --surface-2: #16171d;
+  --surface-3: #1c1d24;
+
+  /* ink */
+  --ink: #ececf1;
+  --ink-2: #a6a8b6;
+  --ink-muted: #6d6f7c;
+
+  /* lines */
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.11);
+  --field-bg: #14151b;
+  --field-border: rgba(255, 255, 255, 0.1);
+
+  --radius: 14px;
+  --radius-sm: 9px;
 }
 
 * { box-sizing: border-box; }
+
+html { background: var(--bg); }
 
 body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  /* calm, layered backdrop for the glass to blur over */
-  background:
-    radial-gradient(1100px 760px at 12% -8%, #e7ecff 0%, rgba(231, 236, 255, 0) 60%),
-    radial-gradient(1000px 700px at 100% 0%, #f3e8ff 0%, rgba(243, 232, 255, 0) 55%),
-    radial-gradient(900px 720px at 85% 112%, #e6fbff 0%, rgba(230, 251, 255, 0) 55%),
-    linear-gradient(165deg, #eef1fb 0%, #f6f3fb 55%, #f2f6fb 100%);
+  text-rendering: optimizeLegibility;
+  background: var(--bg);
+  /* faint editorial vignette — the accent barely glows top-left */
+  background-image:
+    radial-gradient(900px 520px at 0% -10%, rgba(124, 116, 255, 0.08), transparent 60%),
+    radial-gradient(700px 480px at 100% 0%, rgba(124, 116, 255, 0.04), transparent 55%);
   background-attachment: fixed;
 }
 
-/* interaction polish — additive properties, safe over the inline base styles */
-button { transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease; }
-button:hover { transform: translateY(-1px); filter: brightness(1.04); }
-button:active { transform: translateY(0); filter: brightness(0.98); }
+h1, h2, h3 { font-family: var(--font-sans); }
+
+/* uppercase mono kicker label — the editorial signature */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* interaction polish — additive, safe over inline base styles */
+button { transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease; }
+button:active { transform: translateY(0.5px); }
 button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
 
-input, textarea, select { transition: box-shadow 0.16s ease, border-color 0.16s ease; }
+input, textarea, select { transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
+input::placeholder, textarea::placeholder { color: var(--ink-muted); }
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 3px var(--accent-ring);
+  background: var(--surface-2) !important;
 }
 
-/* gentle panel entrance */
-@keyframes glass-in {
-  from { opacity: 0; transform: translateY(10px); }
+/* native file input — legible on dark */
+input[type="file"] {
+  color: var(--ink-2);
+  font-size: 13px;
+  font-family: var(--font-mono);
+}
+input[type="file"]::file-selector-button {
+  font-family: var(--font-sans);
+  margin-right: 12px;
+  padding: 7px 12px;
+  background: var(--surface-3);
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { border-color: var(--accent); }
+
+/* thin, dark scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+
+/* panel entrance */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-section { animation: glass-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+section { animation: panel-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

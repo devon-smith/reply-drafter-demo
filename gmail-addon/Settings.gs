@@ -40,15 +40,19 @@ function buildSettingsCard_() {
       .setHint('A few lines drafts can rely on: name, sign-off, context.')
       .setMultiline(true)
       .setValue(p.getProperty(OVR_KB) || ''))
-    .addWidget(CardService.newTextButton()
-      .setText('Save')
-      .setOnClickAction(CardService.newAction().setFunctionName('onSaveSettings')))
-    .addWidget(CardService.newTextButton()
-      .setText('Clear')
-      .setOnClickAction(CardService.newAction().setFunctionName('onClearSettings')));
+    .addWidget(CardService.newDivider())
+    .addWidget(CardService.newButtonSet()
+      .addButton(CardService.newTextButton()
+        .setText('Save')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setBackgroundColor(ACCENT)
+        .setOnClickAction(CardService.newAction().setFunctionName('onSaveSettings')))
+      .addButton(CardService.newTextButton()
+        .setText('Clear')
+        .setOnClickAction(CardService.newAction().setFunctionName('onClearSettings'))));
 
   return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Reply Drafter — Settings'))
+    .setHeader(brandedHeader_('Settings'))
     .addSection(section)
     .build();
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient.js";
-import { card, h2, muted } from "../styles.js";
+import { card, kicker, h2, muted, mono } from "../styles.js";
 
 // Personal usage/cost view. Reads the signed-in user's usage_event rows under
 // RLS (anon key + Auth) — never the service key. Days are bucketed in UTC to
@@ -36,6 +36,7 @@ export default function Usage() {
   if (rows === null) {
     return (
       <section style={card}>
+        <span style={kicker}>Metering</span>
         <h2 style={h2}>Usage &amp; cost</h2>
         <p style={muted}>Loading…</p>
       </section>
@@ -81,6 +82,7 @@ export default function Usage() {
 
   return (
     <section style={card}>
+      <span style={kicker}>Metering</span>
       <h2 style={h2}>Usage &amp; cost</h2>
       {error && <p style={{ color: "var(--danger)", fontSize: 14 }}>Couldn't load usage: {error}</p>}
       {empty ? (
@@ -92,11 +94,11 @@ export default function Usage() {
             <TileGroup label="This month" s={month} />
           </div>
 
-          <div style={{ marginTop: 16 }}>
-            <div style={{ ...muted, marginBottom: 4 }}>
-              Today: {fmtInt(today.tokens)} / {fmtInt(DAILY_TOKEN_CAP)} tokens ({capPct}% of daily cap)
+          <div style={{ marginTop: 20 }}>
+            <div style={{ ...muted, ...mono, fontSize: 12, marginBottom: 6 }}>
+              Today {fmtInt(today.tokens)} / {fmtInt(DAILY_TOKEN_CAP)} tokens · {capPct}% of daily cap
             </div>
-            <div style={{ height: 8, background: "var(--hairline)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 4, overflow: "hidden" }}>
               <div
                 style={{
                   width: capPct + "%",
@@ -107,8 +109,8 @@ export default function Usage() {
             </div>
           </div>
 
-          <div style={{ marginTop: 20 }}>
-            <div style={{ ...muted, marginBottom: 6 }}>Daily tokens — last 30 days</div>
+          <div style={{ marginTop: 24 }}>
+            <div style={{ ...kicker, marginBottom: 8 }}>Daily tokens · last 30 days</div>
             <div
               style={{
                 display: "flex",
@@ -134,7 +136,7 @@ export default function Usage() {
                 );
               })}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", ...muted, marginTop: 4, fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", ...muted, ...mono, marginTop: 6, fontSize: 11 }}>
               <span>{days[0].key}</span>
               <span>peak {fmtInt(maxTokens)} tok/day</span>
               <span>{days[days.length - 1].key}</span>
@@ -148,9 +150,9 @@ export default function Usage() {
 
 function TileGroup({ label, s }) {
   return (
-    <div style={{ flex: "1 1 240px", background: "var(--glass-bg-strong)", border: "1px solid var(--glass-border)", borderRadius: "var(--radius-sm)", padding: 14 }}>
-      <div style={{ fontSize: 13, color: "var(--ink-2)", marginBottom: 8 }}>{label}</div>
-      <div style={{ display: "flex", gap: 16 }}>
+    <div style={{ flex: "1 1 240px", background: "var(--surface-2)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-sm)", padding: 16 }}>
+      <div style={{ ...kicker, marginBottom: 12 }}>{label}</div>
+      <div style={{ display: "flex", gap: 18 }}>
         <Stat n={fmtInt(s.requests)} label="requests" />
         <Stat n={fmtInt(s.tokens)} label="tokens" />
         <Stat n={fmtCost(s.cost)} label="est. cost" />
@@ -162,8 +164,8 @@ function TileGroup({ label, s }) {
 function Stat({ n, label }) {
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 600, color: "var(--ink)" }}>{n}</div>
-      <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>{label}</div>
+      <div style={{ ...mono, fontSize: 21, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>{n}</div>
+      <div style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
     </div>
   );
 }
