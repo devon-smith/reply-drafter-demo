@@ -1,4 +1,4 @@
-# Family Reply Drafter — Gmail add-on
+# Reply Drafter — Gmail add-on
 
 A Gmail Workspace add-on (Google Apps Script + CardService) that drafts replies
 with Claude by calling the same `/draft` backend the Outlook add-in uses. Open an
@@ -37,7 +37,7 @@ done from a code sandbox.
 2. **Create (or link) the Apps Script project** from this directory:
    ```bash
    cd gmail-addon
-   clasp create --type standalone --title "Family Reply Drafter" --rootDir .
+   clasp create --type standalone --title "Reply Drafter" --rootDir .
    # this writes .clasp.json (gitignored). Or, if the project already exists:
    #   cp .clasp.json.example .clasp.json   # then paste the scriptId
    clasp push
