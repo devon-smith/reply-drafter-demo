@@ -101,7 +101,7 @@ export default function Usage() {
                 style={{
                   width: capPct + "%",
                   height: "100%",
-                  background: capPct >= 100 ? "#b00" : "#2b6cb0",
+                  background: capPct >= 100 ? "#b00" : "var(--accent)",
                 }}
               />
             </div>
@@ -127,7 +127,7 @@ export default function Usage() {
                     style={{
                       flex: 1,
                       height: h,
-                      background: "#2b6cb0",
+                      background: "var(--accent)",
                       borderRadius: "3px 3px 0 0",
                     }}
                   />
