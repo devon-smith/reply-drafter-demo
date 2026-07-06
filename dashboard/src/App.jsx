@@ -4,7 +4,7 @@ import KbManager from "./components/KbManager.jsx";
 import PromptSettings from "./components/PromptSettings.jsx";
 import WritingMaterial from "./components/WritingMaterial.jsx";
 import Usage from "./components/Usage.jsx";
-import { wrap, btn, btnGhost, muted } from "./styles.js";
+import { wrap, card, btn, btnGhost, muted } from "./styles.js";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -24,14 +24,14 @@ export default function App() {
 
   return (
     <div style={wrap}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee", paddingBottom: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>Reply Drafter — Settings</h1>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "6px 4px 16px", borderBottom: "1px solid rgba(28,35,51,0.08)" }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 680, letterSpacing: "-0.02em" }}>Reply Drafter</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={muted}>{session.user.email}</span>
           <button onClick={() => supabase.auth.signOut()} style={btnGhost}>Sign out</button>
         </div>
       </header>
-      <p style={muted}>These settings drive your Claude reply drafts in Gmail. You see only your own data.</p>
+      <p style={{ ...muted, marginTop: 14 }}>These settings drive your Claude reply drafts in Gmail. You see only your own data.</p>
       <Usage />
       <PromptSettings email={session.user.email} />
       <WritingMaterial email={session.user.email} />
@@ -53,10 +53,10 @@ function SignIn() {
     });
   return (
     <Center>
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{ fontSize: 22 }}>Reply Drafter</h1>
-        <p style={muted}>Sign in to manage your knowledge base and reply tone.</p>
-        <button onClick={signIn} style={{ ...btn, padding: "10px 16px", marginTop: 8 }}>Sign in with Google</button>
+      <div style={{ ...card, textAlign: "center", maxWidth: 380, padding: 32, marginTop: 0 }}>
+        <h1 style={{ margin: "0 0 6px", fontSize: 24, fontWeight: 680, letterSpacing: "-0.02em" }}>Reply Drafter</h1>
+        <p style={{ ...muted, marginTop: 0 }}>Sign in to manage your knowledge base and reply tone.</p>
+        <button onClick={signIn} style={{ ...btn, padding: "11px 18px", marginTop: 14 }}>Sign in with Google</button>
       </div>
     </Center>
   );
