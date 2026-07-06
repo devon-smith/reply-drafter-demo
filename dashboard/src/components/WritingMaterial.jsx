@@ -83,12 +83,12 @@ export default function WritingMaterial({ email }) {
       </p>
       <ul style={{ listStyle: "none", padding: 0 }}>
         {rows.map((r) => (
-          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--hairline)" }}>
             <span>{r.filename}</span>
             <button onClick={() => remove(r)} style={btnGhost}>Delete</button>
           </li>
         ))}
-        {rows.length === 0 && <li style={{ color: "#999" }}>No files yet.</li>}
+        {rows.length === 0 && <li style={{ color: "var(--ink-muted)" }}>No files yet.</li>}
       </ul>
       <form onSubmit={onUpload}>
         <input ref={fileRef} type="file" multiple accept=".txt,.md,.text,.pdf" disabled={busy} />

@@ -53,7 +53,7 @@ export default function KbManager({ email }) {
       </p>
       <ul style={{ listStyle: "none", padding: 0 }}>
         {rows.map((r) => (
-          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+          <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--hairline)" }}>
             <div>
               {r.title && <strong>{r.title}: </strong>}
               <span>{r.content}</span>
@@ -61,7 +61,7 @@ export default function KbManager({ email }) {
             <button onClick={() => remove(r.id)} style={btnGhost}>Delete</button>
           </li>
         ))}
-        {rows.length === 0 && <li style={{ color: "#999" }}>No entries yet.</li>}
+        {rows.length === 0 && <li style={{ color: "var(--ink-muted)" }}>No entries yet.</li>}
       </ul>
       <form onSubmit={add}>
         <input style={input} value={title} placeholder="Title (optional)" onChange={(e) => setTitle(e.target.value)} />

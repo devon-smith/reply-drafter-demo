@@ -24,6 +24,8 @@
   --radius-sm: 10px;
   --field-bg: rgba(255, 255, 255, 0.5);
   --field-border: rgba(28, 35, 51, 0.14);
+  --hairline: rgba(28, 35, 51, 0.08);
+  --danger: #c0362c;
 }
 
 * { box-sizing: border-box; }
