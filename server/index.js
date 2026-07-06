@@ -1,4 +1,4 @@
-// Reply Drafter backend. Express + native fetch (Node 20). No SDK, no dotenv
+// Reply Drafter backend. Express + native fetch (Node 22). No SDK, no dotenv
 // (env comes from docker compose env_file). Plain HTTP behind Caddy.
 const express = require("express");
 const path = require("path");
@@ -458,4 +458,33 @@ app.post("/draft", async (req, res) => {
   }
 });
 
+// Boot-time env self-check. Logs the NAMES of missing/placeholder/malformed
+// required vars (never values) so a silent misconfig is visible in the container
+// logs instead of surfacing later as a mystery 401/500/empty-config. Catches the
+// classic footguns: an unset ANTHROPIC_API_KEY, an open /draft (no API_SECRET),
+// and a masked/truncated SUPABASE_SERVICE_KEY (the • / non-JWT paste bug).
+function checkEnv() {
+  const bad = (v) => !v || /^(replace_me|changeme|your[-_]|xxxx)/i.test(v) || /[•·]/.test(v);
+  const missing = [];
+  const warn = [];
+
+  if (bad(KEY)) missing.push("ANTHROPIC_API_KEY (unset/placeholder)");
+  else if (!/^sk-ant-/.test(KEY)) warn.push("ANTHROPIC_API_KEY (unexpected format — expected sk-ant-…)");
+
+  if (bad(process.env.API_SECRET)) {
+    warn.push("API_SECRET (unset — /draft accepts any caller with the URL; set it before sharing)");
+  }
+  if (bad(process.env.SUPABASE_URL)) warn.push("SUPABASE_URL (unset — per-user config disabled, files-only)");
+  const svc = process.env.SUPABASE_SERVICE_KEY;
+  if (bad(svc)) warn.push("SUPABASE_SERVICE_KEY (unset/placeholder — per-user config disabled)");
+  else if (!(svc.startsWith("eyJ") && svc.split(".").length === 3)) {
+    warn.push("SUPABASE_SERVICE_KEY (not a valid JWT — likely masked/truncated; re-copy the real key)");
+  }
+
+  if (missing.length) console.error("[boot] REQUIRED env missing/invalid:", missing.join("; "));
+  if (warn.length) console.warn("[boot] env warnings:", warn.join("; "));
+  if (!missing.length && !warn.length) console.log("[boot] env self-check: all required vars present and well-formed");
+}
+
+checkEnv();
 app.listen(PORT, () => console.log(`reply-drafter listening on :${PORT} (model ${MODEL})`));
