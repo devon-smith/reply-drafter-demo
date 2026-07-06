@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient.js";
-import { card, h2, input, btn, btnGhost, muted } from "../styles.js";
+import { card, kicker, h2, input, btn, btnGhost, muted } from "../styles.js";
 
 // List / create / delete the caller's kb_entry rows. RLS ensures a user only
 // ever sees and mutates their own rows; we still set user_email explicitly on
@@ -47,6 +47,7 @@ export default function KbManager({ email }) {
 
   return (
     <section style={card}>
+      <span style={kicker}>Facts</span>
       <h2 style={h2}>Knowledge base</h2>
       <p style={{ ...muted, marginTop: 0 }}>
         Facts your drafts can rely on (name, sign-off, context).
