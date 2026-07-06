@@ -38,6 +38,7 @@ const OVR_APPEND_CAP = 4000; // max chars of per-user extra instructions
 const OVR_KB_CAP = 8000;  // max chars of per-user KB facts
 const OVR_TONE_CAP = 200; // max chars of per-user tone directive
 const SYSTEM_CAP = 24000; // hard cap on the fully assembled system prompt
+const KB_GUIDANCE_CAP = 8000; // max combined chars of per-user style+examples+facts (kb_entry + kb_file)
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -63,22 +64,50 @@ async function loadUserConfig(userEmail) {
   const email = String(userEmail).trim().toLowerCase();
   if (!email) return null;
   try {
-    const [kbRes, psRes] = await Promise.all([
-      supabase.from("kb_entry").select("title,content").eq("user_email", email),
+    const [entryRes, fileRes, psRes] = await Promise.all([
+      supabase.from("kb_entry").select("title,content,category").eq("user_email", email),
+      supabase.from("kb_file").select("filename,extracted_text,category").eq("user_email", email),
       supabase
         .from("prompt_setting")
         .select("system_prompt_append,tone")
         .eq("user_email", email)
         .maybeSingle(),
     ]);
-    const kbRows = (kbRes && kbRes.data) || [];
+    const entries = (entryRes && entryRes.data) || [];
+    const files = (fileRes && fileRes.data) || [];
     const ps = (psRes && psRes.data) || null;
-    const kb = kbRows
-      .map((r) => (r.title ? `## ${r.title}\n${r.content}` : String(r.content || "")))
-      .join("\n\n")
-      .trim();
+
+    // Group kb_entry + kb_file by category (unknown/missing category -> 'fact').
+    const bucket = { fact: [], style: [], example: [] };
+    for (const e of entries) {
+      const cat = bucket[e.category] ? e.category : "fact";
+      const text = e.title ? `## ${e.title}\n${e.content}` : String(e.content || "");
+      if (text.trim()) bucket[cat].push(text.trim());
+    }
+    for (const f of files) {
+      const cat = bucket[f.category] ? f.category : "fact";
+      const text = String(f.extracted_text || "").trim();
+      if (text) bucket[cat].push(`## ${f.filename}\n${text}`);
+    }
+
+    // Volume control: cap the COMBINED style+examples+facts, priority style >
+    // examples > facts (truncate lowest-priority first, deterministically).
+    const capped = capGuidance(
+      [
+        { key: "style", text: bucket.style.join("\n\n").trim() },
+        { key: "examples", text: bucket.example.join("\n\n").trim() },
+        { key: "facts", text: bucket.fact.join("\n\n").trim() },
+      ],
+      KB_GUIDANCE_CAP
+    );
+    if (capped.clipped) {
+      console.log(`[kb] per-user guidance clipped to ${KB_GUIDANCE_CAP} chars for ${email}`);
+    }
+
     const out = {};
-    if (kb) out.kb = kb;
+    if (capped.map.style) out.style = capped.map.style;
+    if (capped.map.examples) out.examples = capped.map.examples;
+    if (capped.map.facts) out.facts = capped.map.facts;
     if (ps && ps.system_prompt_append) out.systemPromptAppend = ps.system_prompt_append;
     if (ps && ps.tone) out.tone = ps.tone;
     return Object.keys(out).length ? out : null;
@@ -86,6 +115,22 @@ async function loadUserConfig(userEmail) {
     console.error("supabase lookup failed:", (e && e.message) || e);
     return null;
   }
+}
+
+// Fill a total character budget across parts in priority order, truncating the
+// first part that overflows and dropping the rest. Deterministic; flags clipping.
+function capGuidance(parts, budget) {
+  let remaining = budget;
+  let clipped = false;
+  const map = {};
+  for (const p of parts) {
+    const t = p.text || "";
+    if (!t) { map[p.key] = ""; continue; }
+    if (remaining <= 0) { map[p.key] = ""; clipped = true; continue; }
+    if (t.length > remaining) { map[p.key] = t.slice(0, remaining); remaining = 0; clipped = true; }
+    else { map[p.key] = t; remaining -= t.length; }
+  }
+  return { map, clipped };
 }
 
 // Fallback used only if prompt/system.md is missing or empty. Keep in sync with
@@ -151,6 +196,11 @@ async function buildSystemPrompt(overrides) {
   const tone = hasOvr ? str(overrides.tone).slice(0, OVR_TONE_CAP) : "";
   const append = hasOvr ? str(overrides.systemPromptAppend).slice(0, OVR_APPEND_CAP) : "";
   const userKb = hasOvr ? str(overrides.kb).slice(0, OVR_KB_CAP) : "";
+  // Category-aware per-user guidance (Supabase kb_entry + kb_file; already capped
+  // in loadUserConfig). Precedence: TONE > style/examples > facts.
+  const style = hasOvr ? str(overrides.style) : "";
+  const examples = hasOvr ? str(overrides.examples) : "";
+  const facts = hasOvr ? str(overrides.facts) : "";
 
   const toneDirective = tone
     ? "TONE (HIGHEST PRIORITY) — Write the entire reply in a " + tone + " register. This " +
@@ -169,10 +219,28 @@ async function buildSystemPrompt(overrides) {
   if (append) {
     out += "\n\n---\nAdditional instructions from the user:\n" + append;
   }
+  // VOICE & STYLE — high precedence, subordinate only to the TONE directive.
+  if (style) {
+    out +=
+      "\n\n---\nVOICE & STYLE — write the reply in the user's voice as described or demonstrated " +
+      "here. High priority; subordinate ONLY to the TONE directive above.\n\n" + style;
+  }
+  // Few-shot EXAMPLES of the user's own writing (mimic voice, not content).
+  if (examples) {
+    out +=
+      "\n\n---\nEXAMPLES of the user's own emails. Mimic their phrasing, rhythm, and sign-off — " +
+      "NOT their specific content, recipients, or facts.\n\n" + examples;
+  }
   if (kb) {
     out +=
       "\n\n---\nKnowledge base — facts about the user and their context. Use these for facts " +
       "when relevant; do not invent details beyond them." + kbStyleNote + "\n\n" + kb;
+  }
+  // Per-user FACTS (Supabase fact-category entries/files) — background reference.
+  if (facts) {
+    out +=
+      "\n\n---\nAdditional facts about this user (background reference, not style)." +
+      kbStyleNote + "\n\n" + facts;
   }
   if (userKb) {
     out +=
