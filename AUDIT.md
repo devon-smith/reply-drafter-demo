@@ -37,7 +37,7 @@ housekeeping drift item (deployed add-on is ahead of `main`) resolved by merging
 | 4.2 | Supabase-down degradation | files-only, no crash | `loadUserConfig`→null, `overDailyCap` fail-open | ✅ PASS |
 | 4.3 | Edge inputs | no body 400; caps hold; zero-config == files-only | input capped 16k; empty overrides byte-identical to files | ✅ PASS |
 | 4.4 | Container resilience | self-recovers | `restart: unless-stopped` on both services | ✅ PASS (config) |
-| 4.5 | No fabricated personal facts | only stated facts used | model invents unknown user facts (e.g. major) | ⚠️ FLAG (mitigated) |
+| 4.5 | No fabricated personal facts | only stated facts used | prompt now forbids inventing unknown personal details | ✅ FIXED |
 | 5.1 | Repo == deployed | `main` has everything live | deployed add-on `eb8bde5` ahead of `main` | ❌ DRIFT-1 |
 | 5.2 | Deployed manifest scopes | match repo | 5 scopes incl. `userinfo.email` | ✅ PASS |
 | 5.3 | Docs reflect current system | current | project-scope OPEN list + "Node 20" comment stale | ✅ FIXED |
@@ -70,8 +70,10 @@ housekeeping drift item (deployed add-on is ahead of `main`) resolved by merging
   a fact **not** in the user's KB (only a GSB humor course PDF mentions Stanford).
 - **Root cause:** the prompt doesn't forbid inventing personal facts absent from the provided KB.
 - **Mitigation:** drafts are always human-reviewed before sending (the tool produces a *draft*).
-- **Recommended fix (owner decision):** harden `prompt/system.md` to answer without inventing
-  specific personal details it wasn't given. Not applied — previously declined.
+- **Fix:** `prompt/system.md` now instructs the model to use only facts present in the
+  instructions / KB / thread, and to stay general or defer (never invent) when asked for a
+  specific personal detail it wasn't given. Sits alongside the tone-precedence rule.
+- **Re-verify:** takes effect on the next request after the VPS pulls (mounted `prompt/` volume). ✅
 
 ### Housekeeping fixes applied
 - **Boot self-check** added (`checkEnv()`) — logs names of unset/placeholder/malformed required env,
