@@ -1,5 +1,5 @@
 /**
- * Family Reply Drafter — Gmail add-on entry points.
+ * Reply Drafter — Gmail add-on entry points.
  *
  * Flow: open a message -> a contextual card renders instantly with a
  * "Generate reply" button -> on click we read the message + its thread, POST to
@@ -13,18 +13,38 @@
  * never meant to reply to.
  */
 
+// Shared card chrome. LOGO_URL is served by the same VPS as /draft; ACCENT
+// matches the dashboard's violet so the two surfaces read as one product.
+// (Global consts are visible across every .gs file in the project.)
+var LOGO_URL = 'https://reply-devon.duckdns.org/icon-128.png';
+var ACCENT = '#7c74ff';
+
+// A branded header (logo + title + subtitle), reused by every card.
+function brandedHeader_(subtitle) {
+  return CardService.newCardHeader()
+    .setTitle('Reply Drafter')
+    .setSubtitle(subtitle)
+    .setImageUrl(LOGO_URL)
+    .setImageStyle(CardService.ImageStyle.CIRCLE);
+}
+
 // Homepage card — shown when the add-on is opened without a message context.
 function onHomepage(e) {
   var section = CardService.newCardSection()
+    .addWidget(CardService.newDecoratedText()
+      .setText('Draft replies with Claude')
+      .setBottomLabel('Open an email, then tap Generate reply.')
+      .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
+      .setWrapText(true))
     .addWidget(CardService.newTextParagraph().setText(
-      'Open an email, then use <b>Generate reply</b> to draft a response with Claude. ' +
-      'The draft opens in a normal compose window so you can edit before sending.'))
+      'The draft opens in a normal compose window, so you can edit it before sending.'))
+    .addWidget(CardService.newDivider())
     .addWidget(CardService.newTextButton()
       .setText('Settings')
       .setOnClickAction(CardService.newAction().setFunctionName('onOpenSettings')));
 
   return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Family Reply Drafter'))
+    .setHeader(brandedHeader_('Powered by Claude'))
     .addSection(section)
     .build();
 }
@@ -38,15 +58,21 @@ function onGmailMessageOpen(e) {
 
   var generateButton = CardService.newTextButton()
     .setText('Generate reply')
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setBackgroundColor(ACCENT)
     .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT);
 
   var section = CardService.newCardSection()
-    .addWidget(CardService.newTextParagraph().setText(
-      'Draft a reply to this email with Claude. You can edit it before sending.'))
-    .addWidget(generateButton);
+    .addWidget(CardService.newDecoratedText()
+      .setText('Draft a reply with Claude')
+      .setBottomLabel('You can edit it before sending.')
+      .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
+      .setWrapText(true))
+    .addWidget(CardService.newDivider())
+    .addWidget(CardService.newButtonSet().addButton(generateButton));
 
   return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Reply Drafter'))
+    .setHeader(brandedHeader_('Powered by Claude'))
     .addSection(section)
     .build();
 }

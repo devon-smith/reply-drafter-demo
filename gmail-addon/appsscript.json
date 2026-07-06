@@ -10,8 +10,8 @@
   ],
   "addOns": {
     "common": {
-      "name": "Family Reply Drafter",
-      "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/email_black_24dp.png",
+      "name": "Reply Drafter",
+      "logoUrl": "https://reply-devon.duckdns.org/icon-128.png",
       "homepageTrigger": {
         "runFunction": "onHomepage"
       }
