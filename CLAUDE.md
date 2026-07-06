@@ -115,7 +115,7 @@ Gmail add-on (Apps Script) ─┤ POST /draft {from,subject,body,userEmail?,over
   absent → output identical to files-only.
 - `userEmail`: optional; reserved for the planned Supabase per-user lookup.
 - Combined email input is length-capped (16000) before the API call; the assembled system
-  prompt is capped (24000). Failure branches return `{ error, detail? }` with an appropriate
+  prompt is capped (32000). Failure branches return `{ error, detail? }` with an appropriate
   status (401 unauthorized, 400 empty body, 500 missing key, 502 Claude error/empty). The prompt
   asks for a concise reply body only — no subject, no preamble.
 
