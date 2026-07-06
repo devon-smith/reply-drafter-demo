@@ -37,8 +37,8 @@ const KB_CAP = 8000;      // max chars of KB facts injected into the prompt
 const OVR_APPEND_CAP = 4000; // max chars of per-user extra instructions
 const OVR_KB_CAP = 8000;  // max chars of per-user KB facts
 const OVR_TONE_CAP = 200; // max chars of per-user tone directive
-const SYSTEM_CAP = 24000; // hard cap on the fully assembled system prompt
-const KB_GUIDANCE_CAP = 8000; // max combined chars of per-user style+examples+facts (kb_entry + kb_file)
+const SYSTEM_CAP = 32000; // hard cap on the fully assembled system prompt
+const KB_GUIDANCE_CAP = 16000; // max combined chars of per-user style+examples+facts (kb_entry + kb_file)
 
 app.use(express.json({ limit: "1mb" }));
 
