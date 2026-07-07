@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reply Drafter — Privacy Policy</title>
+<style>
+  :root { --ink:#1c2333; --ink-2:#46506a; --muted:#6b7691; --accent:#5b6cf0; --line:rgba(28,35,51,0.12); }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#f7f8fc; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.6; }
+  main { max-width:760px; margin:0 auto; padding:48px 24px 80px; }
+  h1 { font-size:30px; letter-spacing:-0.02em; margin:0 0 4px; }
+  h2 { font-size:19px; margin:34px 0 8px; letter-spacing:-0.01em; }
+  p, li { color:var(--ink-2); }
+  .updated { color:var(--muted); font-size:14px; margin:0 0 8px; }
+  .lead { font-size:17px; }
+  ul { padding-left:22px; }
+  li { margin:6px 0; }
+  code { background:#eef0f7; padding:1px 6px; border-radius:6px; font-size:0.92em; }
+  a { color:var(--accent); }
+  hr { border:0; border-top:1px solid var(--line); margin:36px 0; }
+  .scopes li { margin:10px 0; }
+  footer { color:var(--muted); font-size:14px; margin-top:40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reply Drafter — Privacy Policy</h1>
+  <p class="updated">Last updated: July 7, 2026</p>
+  <p class="lead">Reply Drafter is a small, self-hosted tool that drafts email replies using
+  Anthropic's Claude. It is run privately for a handful of family members and friends — not a
+  commercial product. This page explains, plainly, what it touches and where that goes.</p>
+
+  <h2>What Reply Drafter accesses</h2>
+  <ul>
+    <li><strong>The email you choose to reply to.</strong> Only when you click <em>Generate reply</em>
+      on an open message, it reads that message and its quoted thread history so the draft is relevant.
+      It does <strong>not</strong> scan your inbox in bulk — the Gmail add-on can only see the single
+      message you have open.</li>
+    <li><strong>Your email address.</strong> Taken from your Google sign-in, used to load
+      <em>your</em> saved settings (tone, knowledge base, writing samples).</li>
+    <li>Nothing else in your Google account.</li>
+  </ul>
+
+  <h2>Where your data flows</h2>
+  <ul>
+    <li>When you click <em>Generate reply</em>, the message content and your settings are sent to a
+      private, self-hosted backend at <code>reply-devon.duckdns.org</code> (a single server operated
+      by the developer), over HTTPS.</li>
+    <li>That backend calls <strong>Anthropic's Claude API</strong> to generate the reply. Per
+      Anthropic's commercial terms, API inputs and outputs are automatically deleted within
+      <strong>30 days</strong>, are <strong>not used to train models</strong> without express
+      permission, and may be retained up to 2 years only if a request is flagged for a policy
+      violation. See
+      <a href="https://platform.claude.com/docs/en/manage-claude/api-and-data-retention">Anthropic's
+      data-retention policy</a>.</li>
+    <li>The generated text is placed into a Gmail <strong>draft you can edit</strong>. Nothing is ever
+      sent on your behalf — you review and send every reply yourself.</li>
+  </ul>
+
+  <h2>What is stored, and where</h2>
+  <ul>
+    <li>Your <strong>tone/prompt settings, knowledge-base entries, and uploaded writing files</strong>
+      are stored in <strong>Supabase</strong> (managed Postgres + file Storage) so your drafts sound
+      like you.</li>
+    <li>Each user's data is isolated by <strong>row-level security</strong>: you can only ever read or
+      change your own rows, and no other user — or the public — can see them.</li>
+    <li>We also keep a small <strong>usage record</strong> per request (token counts, estimated cost,
+      your email, timestamp) purely for cost control.</li>
+    <li>We do <strong>not</strong> store the content of the emails you draft replies for. That content
+      passes through to generate the reply and is not saved in our database.</li>
+  </ul>
+
+  <h2>What we do not do</h2>
+  <ul>
+    <li>We do not sell or rent your data.</li>
+    <li>We do not use it for advertising.</li>
+    <li>We do not share one user's data with any other user.</li>
+    <li>We do not use your data to train any AI model.</li>
+  </ul>
+
+  <h2>Permissions we request, and why</h2>
+  <ul class="scopes">
+    <li><code>gmail.addons.execute</code> — lets the add-on run inside Gmail and show its panel.</li>
+    <li><code>gmail.addons.current.message.readonly</code> — reads the single email you currently have
+      open, so the draft replies to the right message and thread.</li>
+    <li><code>gmail.addons.current.action.compose</code> — opens a pre-filled draft reply for you to
+      edit; it cannot send mail.</li>
+    <li><code>script.external_request</code> — lets the add-on send the message to our backend (and on
+      to Claude) to generate the reply.</li>
+    <li><code>userinfo.email</code> — reads only your email address, to load your personal settings.</li>
+  </ul>
+
+  <h2>Deleting your data</h2>
+  <ul>
+    <li>In the dashboard at
+      <a href="https://reply-drafter-demo.vercel.app">reply-drafter-demo.vercel.app</a> you can delete
+      any knowledge-base entry, remove any uploaded writing file, and clear your tone/settings at any
+      time. Deletes take effect immediately and remove the data from Supabase.</li>
+    <li>To remove your account and all associated data entirely, email the contact below and it will be
+      deleted.</li>
+  </ul>
+
+  <h2>Security</h2>
+  <p>Traffic is encrypted in transit (HTTPS/TLS). API keys and the database service key live only on
+  the server, never in the add-on, the dashboard, or any client. Access to your stored settings is
+  enforced by row-level security.</p>
+
+  <hr />
+  <footer>
+    <p><strong>Contact:</strong> <a href="mailto:devontjsmith@gmail.com">devontjsmith@gmail.com</a></p>
+    <p>See also our <a href="/terms">Terms of Service</a>.</p>
+  </footer>
+</main>
+</body>
+</html>
