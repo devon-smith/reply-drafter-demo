@@ -42,7 +42,7 @@ Related: `docs/marketplace-publish.md` (the step-by-step runbook), `privacy.html
 | Field | Value |
 |-------|-------|
 | Developer name | Devon Smith |
-| Support email | devontjsmith@gmail.com |
+| Support email | devonthomassmith@gmail.com |
 | Developer website | https://reply-drafter-demo.vercel.app |
 | Privacy policy URL | https://reply-devon.duckdns.org/privacy |
 | Terms of service URL | https://reply-devon.duckdns.org/terms |

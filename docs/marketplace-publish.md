@@ -61,8 +61,8 @@ Cloud console → **APIs & Services → Google Workspace Marketplace SDK → App
 ## 5. 🟢 OAuth consent screen
 Cloud console → **APIs & Services → OAuth consent screen**:
 - **User type:** External.
-- **App name:** Reply Drafter · **User support email:** devontjsmith@gmail.com ·
-  **Developer contact:** devontjsmith@gmail.com.
+- **App name:** Reply Drafter · **User support email:** devonthomassmith@gmail.com ·
+  **Developer contact:** devonthomassmith@gmail.com.
 - **App logo:** upload the icon.
 - **Authorized domains:** add `duckdns.org` and `vercel.app` (the hosts behind the privacy/terms and
   dashboard URLs).
