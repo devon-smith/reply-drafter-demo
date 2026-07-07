@@ -68,6 +68,13 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Static legal pages (extensionless), required for the Marketplace listing +
+// OAuth consent screen. express.static already serves /privacy.html and
+// /terms.html from the repo root; these give the clean /privacy and /terms URLs.
+// Read-only GETs — they don't touch /draft, auth, or the pane.
+app.get("/privacy", (req, res) => res.sendFile(path.join(ROOT, "privacy.html")));
+app.get("/terms", (req, res) => res.sendFile(path.join(ROOT, "terms.html")));
+
 // Look up a user's per-user config in Supabase (service key, bypasses RLS).
 // Returns an overrides-shaped object { systemPromptAppend?, kb?, tone? } or null
 // when Supabase is unconfigured, the user is unknown, or on any error — the
