@@ -77,6 +77,12 @@ function onGmailMessageOpen(e) {
   try {
     if (e && e.gmail && e.gmail.accessToken) {
       GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken);
+      // Cache this WORKING message-access token (keyed by message id) so the
+      // compose action can reuse it — the compose-action event does not reliably
+      // carry a usable token of its own. Short TTL; user-scoped cache.
+      if (e.gmail.messageId) {
+        try { CacheService.getUserCache().put('rd_tok_' + e.gmail.messageId, e.gmail.accessToken, 600); } catch (cacheErr) {}
+      }
       var m = GmailApp.getMessageById(e.gmail.messageId);
       section.addWidget(CardService.newDecoratedText()
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.PERSON))
@@ -111,10 +117,15 @@ function onGmailMessageOpen(e) {
 function onGenerateReply(e) {
   var msg;
   try {
-    // Activate the temporary Gmail scope for this event before using GmailApp.
-    // A gmail.addons.current.message.readonly token also grants read access to
-    // the other messages in the thread.
-    GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken);
+    // Activate the temporary message-access token BEFORE any GmailApp read. The
+    // compose-action event does not reliably carry a usable token, so fall back
+    // to the one cached by the message-open trigger (keyed by message id). A
+    // current-message token also grants read access to the rest of the thread.
+    var token = (e && e.gmail && e.gmail.accessToken) || '';
+    if (!token && e && e.gmail && e.gmail.messageId) {
+      try { token = CacheService.getUserCache().get('rd_tok_' + e.gmail.messageId) || ''; } catch (cacheErr) {}
+    }
+    if (token) GmailApp.setCurrentMessageAccessToken(token);
     msg = GmailApp.getMessageById(e.gmail.messageId);
 
     var payload = buildDraftPayload(msg);
