@@ -46,17 +46,22 @@ Related: `docs/marketplace-publish.md` (the step-by-step runbook), `privacy.html
 |-------|-------|
 | Developer name | Devon Smith |
 | Support email | devonthomassmith@gmail.com |
-| **Support URL** | **https://reply-devon.duckdns.org/support** |
-| Developer website | https://reply-drafter-demo.vercel.app |
-| Privacy policy URL | https://reply-devon.duckdns.org/privacy |
-| Terms of service URL | https://reply-devon.duckdns.org/terms |
+| **Support URL** | **https://www.reply-drafter.com/support** |
+| Developer website | https://www.reply-drafter.com |
+| Privacy policy URL | https://www.reply-drafter.com/privacy |
+| Terms of service URL | https://www.reply-drafter.com/terms |
 | Application host | Google Workspace™ Add-on (Gmail™) |
 
+> **Backend / API host.** The consent-screen and listing URLs above are the public dashboard pages
+> on `www.reply-drafter.com`. The `/draft` backend stays on `reply-devon.duckdns.org` — that's an
+> API endpoint the add-on calls, **not** a consent-screen URL, so it does not go in any of these
+> fields. (The privacy policy still *describes* the backend host, which is correct.)
+
 > **Support URL choice (Google review note).** Google requires the **Support URL** to point at actual
-> support information — *not* the app itself. So it must **not** be the dashboard
-> (`reply-drafter-demo.vercel.app`, which is the app). We serve a dedicated **`/support`** page
-> (`support.html`) with a contact email, install/troubleshooting help, and links to the privacy and
-> terms pages — that's the value in the table above. A `mailto:` also technically "points at support,"
+> support information — *not* the app itself. So it must **not** be the bare app root
+> (`www.reply-drafter.com`, which is the dashboard). We serve a dedicated **`/support`** page with a
+> contact email, install/troubleshooting help, and links to the privacy and terms pages — that's the
+> value in the table above. A `mailto:` also technically "points at support,"
 > but the Marketplace Support URL field expects an **https URL**, so use the `/support` page; keep the
 > **Support email** field as `devonthomassmith@gmail.com` separately.
 
@@ -107,7 +112,7 @@ Capture 2–3 clean screenshots (1280×800 works well). Use a demo email, not an
      so reviewers see the end result.
 
 2. **Dashboard — Prompt & tone**
-   - `reply-drafter-demo.vercel.app`, the dark sidebar console on the **Prompt & tone** tab: the tone
+   - `www.reply-drafter.com`, the dark sidebar console on the **Prompt & tone** tab: the tone
      preset chips + tone field + extra instructions. Shows how a user personalizes their voice.
 
 3. *(optional)* **Dashboard — Usage & cost** or **Writing material**

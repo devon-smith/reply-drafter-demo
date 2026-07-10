@@ -1,8 +1,8 @@
 # OAuth Verification Reply - Email Template
 
 Use this as the reply to Google's Trust & Safety / OAuth verification team.
-Fill in [VIDEO LINK] once the demo video (see docs/verification-video-script.md)
-is recorded and uploaded.
+The demo video (see docs/verification-video-script.md) is recorded and its link
+is filled in below.
 
 ---
 
@@ -80,7 +80,7 @@ the add-on and dashboard.
 A short (~3-4 minute) screen recording showing installation and consent,
 and each of the five scopes in use end-to-end, is available here:
 
-[VIDEO LINK]
+https://www.youtube.com/watch?v=Pwe-vsYd_9U
 
 Please let us know if any additional information is needed.
 

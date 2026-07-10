@@ -9,8 +9,9 @@ Everything here happens in the **Apps Script editor** and the **Google Cloud con
 Google account that owns the script — none of it can be done from the code repo.
 
 Listing text to paste: **`docs/marketplace-listing.md`**.
-Legal URLs (already live once the backend is redeployed): `https://reply-devon.duckdns.org/privacy`
-and `.../terms`.
+Legal URLs (live on the dashboard, Vercel): `https://www.reply-drafter.com/privacy`, `/terms`,
+`/support`. The `/draft` backend stays on `reply-devon.duckdns.org` — an API endpoint the add-on
+calls, **not** a consent-screen URL, so it never goes in these fields.
 
 > **Legend:** 🟢 **one-time** setup · 🔁 **per-release** (repeat on each new version).
 
@@ -18,10 +19,10 @@ and `.../terms`.
 
 ## 0. Prerequisites
 - The `gmail-addon/` project is pushed (`clasp push`) and works as a test deployment.
-- **Redeploy the backend first** so `/privacy` and `/terms` are live (they're new server routes, baked
-  into the image): on the VPS `cd ~/app && git pull && docker compose up -d --build`, then check
-  `https://reply-devon.duckdns.org/privacy` and `/terms` load over HTTPS. The listing/consent screen
-  will reject unreachable URLs.
+- **Confirm the legal pages are live** — they're served from the dashboard (Vercel): check
+  `https://www.reply-drafter.com/privacy`, `/terms`, and `/support` all load over HTTPS. The
+  listing/consent screen rejects unreachable URLs. (The same pages are also served from the VPS at
+  `reply-devon.duckdns.org/...`, but use the `www.reply-drafter.com` URLs everywhere for consistency.)
 - Have a square **app icon** ready (PNG, 128×128 and 32×32) and 2–3 **screenshots** (see the shot-list
   in `docs/marketplace-listing.md`).
 
@@ -55,7 +56,7 @@ Cloud console → **APIs & Services → Google Workspace Marketplace SDK → App
   - `https://www.googleapis.com/auth/gmail.addons.current.action.compose`
   - `https://www.googleapis.com/auth/script.external_request`
   - `https://www.googleapis.com/auth/userinfo.email`
-- **Developer links:** privacy `https://reply-devon.duckdns.org/privacy`, terms `.../terms`.
+- **Developer links:** privacy `https://www.reply-drafter.com/privacy`, terms `https://www.reply-drafter.com/terms`.
 - Save. *(Revisit only if scopes or the deployment change.)*
 
 ## 5. 🟢 OAuth consent screen
@@ -64,10 +65,11 @@ Cloud console → **APIs & Services → OAuth consent screen**:
 - **App name:** Reply Drafter · **User support email:** devonthomassmith@gmail.com ·
   **Developer contact:** devonthomassmith@gmail.com.
 - **App logo:** upload the icon.
-- **Authorized domains:** add `duckdns.org` and `vercel.app` (the hosts behind the privacy/terms and
-  dashboard URLs).
-- **App privacy policy:** `https://reply-devon.duckdns.org/privacy` ·
-  **Terms of service:** `https://reply-devon.duckdns.org/terms`.
+- **Authorized domains:** add `reply-drafter.com` (the host behind the privacy/terms/support and
+  dashboard URLs). The `/draft` API host `reply-devon.duckdns.org` is not a consent-screen URL, so it
+  is not required here.
+- **App privacy policy:** `https://www.reply-drafter.com/privacy` ·
+  **Terms of service:** `https://www.reply-drafter.com/terms`.
 - **Scopes:** add the same five; paste the per-scope justifications from `docs/marketplace-listing.md`.
 - **Publishing status:** set to **In production** (still unverified until step 7 completes — this stops
   the 7-day test-user token expiry).
