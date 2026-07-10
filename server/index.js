@@ -74,6 +74,7 @@ app.get("/health", (req, res) => {
 // Read-only GETs — they don't touch /draft, auth, or the pane.
 app.get("/privacy", (req, res) => res.sendFile(path.join(ROOT, "privacy.html")));
 app.get("/terms", (req, res) => res.sendFile(path.join(ROOT, "terms.html")));
+app.get("/support", (req, res) => res.sendFile(path.join(ROOT, "support.html")));
 
 // Look up a user's per-user config in Supabase (service key, bypasses RLS).
 // Returns an overrides-shaped object { systemPromptAppend?, kb?, tone? } or null

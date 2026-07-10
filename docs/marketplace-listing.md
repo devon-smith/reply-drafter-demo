@@ -6,20 +6,20 @@ tool, not a commercial product — reviewers respond better to an accurate small
 to inflated claims.
 
 Related: `docs/marketplace-publish.md` (the step-by-step runbook), `privacy.html` (`/privacy`),
-`terms.html` (`/terms`).
+`terms.html` (`/terms`), `support.html` (`/support`).
 
 ---
 
 ## App identity
 
-- **App name:** Reply Drafter
+- **App name:** Reply Drafter *(the name contains no Google product name — no change needed)*
 - **Short description** (~28 words):
-  > Draft a Gmail reply in your own voice with Claude. Open an email, click Generate, and an editable
+  > Draft a Gmail™ reply in your own voice with Claude. Open an email, click Generate, and an editable
   > draft appears — you review and send it yourself. Nothing is sent automatically.
 
 - **Long description:**
   > Reply Drafter helps you get through your inbox faster by drafting replies that sound like you.
-  > Open an email in Gmail, click **Generate reply**, and it reads that message (and its thread) and
+  > Open an email in Gmail™, click **Generate reply**, and it reads that message (and its thread) and
   > produces a ready-to-edit draft using Anthropic's Claude. You always review and send the draft
   > yourself — the add-on never sends mail on your behalf.
   >
@@ -28,8 +28,11 @@ Related: `docs/marketplace-publish.md` (the step-by-step runbook), `privacy.html
   > actually write. Your settings are private to you.
   >
   > This is a small, self-hosted tool built for personal and family use — a handful of people, not a
-  > large-scale service. It uses only the minimal Gmail add-on permissions needed to read the message
+  > large-scale service. It uses only the minimal Gmail™ add-on permissions needed to read the message
   > you have open and to open a draft reply; it does not scan your inbox or send email for you.
+  >
+  > Gmail™ and Google Workspace™ are trademarks of Google LLC. This application is not created by,
+  > affiliated with, or endorsed by Google LLC.
 
 ## Categorization
 
@@ -43,10 +46,19 @@ Related: `docs/marketplace-publish.md` (the step-by-step runbook), `privacy.html
 |-------|-------|
 | Developer name | Devon Smith |
 | Support email | devonthomassmith@gmail.com |
+| **Support URL** | **https://reply-devon.duckdns.org/support** |
 | Developer website | https://reply-drafter-demo.vercel.app |
 | Privacy policy URL | https://reply-devon.duckdns.org/privacy |
 | Terms of service URL | https://reply-devon.duckdns.org/terms |
-| Application host | Google Workspace Add-on (Gmail) |
+| Application host | Google Workspace™ Add-on (Gmail™) |
+
+> **Support URL choice (Google review note).** Google requires the **Support URL** to point at actual
+> support information — *not* the app itself. So it must **not** be the dashboard
+> (`reply-drafter-demo.vercel.app`, which is the app). We serve a dedicated **`/support`** page
+> (`support.html`) with a contact email, install/troubleshooting help, and links to the privacy and
+> terms pages — that's the value in the table above. A `mailto:` also technically "points at support,"
+> but the Marketplace Support URL field expects an **https URL**, so use the `/support` page; keep the
+> **Support email** field as `devonthomassmith@gmail.com` separately.
 
 ---
 
