@@ -268,7 +268,7 @@ function SignIn() {
   // Return to the CURRENT origin (localhost:5173 in dev, the Vercel URL in prod).
   // This origin must also be in Supabase → Authentication → URL Configuration.
   const signIn = () =>
-    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/` } });
+    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/app` } });
   return (
     <Center>
       <div style={{ ...card, textAlign: "center", maxWidth: 400, padding: 36 }}>
