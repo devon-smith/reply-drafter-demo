@@ -14,6 +14,25 @@ Thank you for reviewing Reply Drafter. Below is our app description, a
 justification for each requested scope, and a demo video showing the complete
 flow and every scope in use.
 
+## Updates made in response to your checklist
+
+In response to your verification checklist, we have updated our privacy policy
+(hosted at https://www.reply-drafter.com/privacy, with the Limited Use
+compliance statement also shown on the landing page at
+https://www.reply-drafter.com):
+
+- Added the Google API Services Limited Use affirmative statement: "Reply
+  Drafter's use of information received from Google APIs will adhere to the
+  Google API Services User Data Policy, including the Limited Use requirements."
+- Added five explicit, individually-labeled data-handling disclosures: Data
+  Access, Data Use, Data Transfer, Data Protection, and Data Retention &
+  Deletion.
+- Added an AI/ML training restriction statement: Gmail™ message content sent to
+  Anthropic's API is not used to train or improve any AI/ML model (Anthropic
+  does not train on API inputs by default), and Google Workspace user data is
+  never used to develop, improve, or train any model beyond generating that
+  user's own draft reply.
+
 ## App description
 
 Reply Drafter is a small, self-hosted Gmail add-on that helps a person draft
@@ -81,6 +100,21 @@ A short (~3-4 minute) screen recording showing installation and consent,
 and each of the five scopes in use end-to-end, is available here:
 
 https://www.youtube.com/watch?v=Pwe-vsYd_9U
+
+## Checklist confirmations
+
+- CASA: Not applicable. Reply Drafter requests sensitive scopes only and no
+  restricted scopes, so no third-party (CASA) security assessment is required.
+- Test credentials: None required. The add-on installs into the reviewer's own
+  Google account, and the companion dashboard uses the reviewer's own Google
+  sign-in - there is no separate login or password to provision.
+- Authentication blockers: None. There are no phone-number verifications, credit
+  card requirements, or other constraints blocking access to the integration.
+- Data Portability APIs: Not used by this application.
+- Publishing status: Remains "In Production."
+- Demo video: Unlisted on YouTube at
+  https://www.youtube.com/watch?v=Pwe-vsYd_9U, showing the OAuth consent screen
+  with all requested scopes fully expanded and each scope exercised end-to-end.
 
 Please let us know if any additional information is needed.
 
