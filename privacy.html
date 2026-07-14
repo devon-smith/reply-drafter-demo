@@ -32,11 +32,16 @@
   Anthropic's Claude. It is run privately for a handful of family members and friends — not a
   commercial product. This page explains, plainly, what it touches and where that goes.</p>
 
+  <p style="background:#eef0f7;border-radius:10px;padding:16px 18px;color:var(--ink-2)">
+    <strong>Google Limited Use Disclosure.</strong> Reply Drafter's use of information received from
+    Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use
+    requirements.</p>
+
   <h2>What Reply Drafter accesses</h2>
   <ul>
     <li><strong>The email you choose to reply to.</strong> Only when you click <em>Generate reply</em>
       on an open message, it reads that message and its quoted thread history so the draft is relevant.
-      It does <strong>not</strong> scan your inbox in bulk — the Gmail add-on can only see the single
+      It does <strong>not</strong> scan your inbox in bulk — the Gmail™ add-on can only see the single
       message you have open.</li>
     <li><strong>Your email address.</strong> Taken from your Google sign-in, used to load
       <em>your</em> saved settings (tone, knowledge base, writing samples).</li>
@@ -55,7 +60,7 @@
       violation. See
       <a href="https://platform.claude.com/docs/en/manage-claude/api-and-data-retention">Anthropic's
       data-retention policy</a>.</li>
-    <li>The generated text is placed into a Gmail <strong>draft you can edit</strong>. Nothing is ever
+    <li>The generated text is placed into a Gmail™ <strong>draft you can edit</strong>. Nothing is ever
       sent on your behalf — you review and send every reply yourself.</li>
   </ul>
 
@@ -82,7 +87,7 @@
 
   <h2>Permissions we request, and why</h2>
   <ul class="scopes">
-    <li><code>gmail.addons.execute</code> — lets the add-on run inside Gmail and show its panel.</li>
+    <li><code>gmail.addons.execute</code> — lets the add-on run inside Gmail™ and show its panel.</li>
     <li><code>gmail.addons.current.message.readonly</code> — reads the single email you currently have
       open, so the draft replies to the right message and thread.</li>
     <li><code>gmail.addons.current.action.compose</code> — opens a pre-filled draft reply for you to
@@ -106,6 +111,35 @@
   <p>Traffic is encrypted in transit (HTTPS/TLS). API keys and the database service key live only on
   the server, never in the add-on, the dashboard, or any client. Access to your stored settings is
   enforced by row-level security.</p>
+
+  <h2>Google user data — access, use, transfer, protection, retention</h2>
+  <ul>
+    <li><strong>Data access.</strong> When you click Generate on an open message, Reply Drafter
+      accesses that message's sender, subject, body, and quoted thread history, and your Google account
+      email address. It does not read any other messages, and it does not scan your inbox. No aggregated
+      or derived copies of your Google user data are created beyond the transient text used to produce
+      that one reply.</li>
+    <li><strong>Data use.</strong> That message content and your saved settings are sent to Anthropic's
+      Claude API solely to generate a single draft reply shown to you, the same user. Your email address
+      is used only to load your own settings and to meter your usage. The data is used for no other
+      purpose.</li>
+    <li><strong>Data transfer.</strong> The message content is transmitted to <strong>Anthropic</strong>,
+      an AI API provider, solely to generate your draft. It is not sold, not shared with data brokers or
+      advertisers, and not shared with any third party other than Anthropic for that single purpose.</li>
+    <li><strong>Data protection.</strong> All traffic is encrypted with HTTPS/TLS in transit; the
+      backend is gated by an API key; per-user data in Supabase is isolated by row-level security; and
+      API keys and the database service key live only server-side, never in any client.</li>
+    <li><strong>Data retention &amp; deletion.</strong> Reply Drafter does not store the Gmail™ message
+      content it drafts replies for — it passes through to generate the reply. Anthropic automatically
+      deletes API inputs and outputs within 30 days. Your settings, knowledge base, and uploaded files
+      are stored in Supabase and can be deleted from the dashboard at any time; to remove your account
+      and all data entirely, email the contact below.</li>
+  </ul>
+
+  <h2>AI/ML model training</h2>
+  <p>Message content is sent to Anthropic's API and is <strong>not</strong> used to train or improve
+  AI/ML models — Anthropic does not train on API inputs by default. Google Workspace user data is never
+  used to develop, improve, or train any AI/ML model beyond generating that user's own draft reply.</p>
 
   <hr />
   <footer>

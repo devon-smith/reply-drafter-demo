@@ -87,7 +87,11 @@ export default function Landing() {
           <span style={{ color: "var(--ink-muted)", fontSize: 13 }}>© 2026 Reply Drafter</span>
         </div>
         <div style={{ ...container, padding: "0 24px 28px" }}>
-          <p style={{ color: "var(--ink-muted)", fontSize: 12, margin: 0, maxWidth: 700 }}>
+          <p style={{ color: "var(--ink-muted)", fontSize: 12, margin: "0 0 8px", maxWidth: 760 }}>
+            Reply Drafter's use of information received from Google APIs will adhere to the Google API
+            Services User Data Policy, including the Limited Use requirements.
+          </p>
+          <p style={{ color: "var(--ink-muted)", fontSize: 12, margin: 0, maxWidth: 760 }}>
             Gmail™ is a trademark of Google LLC. Reply Drafter is not created by, affiliated with, or
             endorsed by Google LLC.
           </p>
