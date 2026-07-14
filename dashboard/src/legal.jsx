@@ -76,6 +76,12 @@ function Privacy() {
         This page explains, plainly, what it touches and where that goes.
       </p>
 
+      <div style={S.callout}>
+        <strong>Google Limited Use Disclosure.</strong> Reply Drafter's use of information received
+        from Google APIs will adhere to the Google API Services User Data Policy, including the Limited
+        Use requirements.
+      </div>
+
       <h2 style={S.h2}>What Reply Drafter accesses</h2>
       <ul>
         <li style={S.li}><strong>The email you choose to reply to.</strong> Only when you click
@@ -150,6 +156,38 @@ function Privacy() {
       <p style={S.p}>Traffic is encrypted in transit (HTTPS/TLS). API keys and the database service key
       live only on the server, never in the add-on, the dashboard, or any client. Access to your stored
       settings is enforced by row-level security.</p>
+
+      <h2 style={S.h2}>Google user data — access, use, transfer, protection, retention</h2>
+      <ul>
+        <li style={S.li}><strong>Data access.</strong> When you click Generate on an open message,
+          Reply Drafter accesses that message's sender, subject, body, and quoted thread history, and
+          your Google account email address. It does not read any other messages, and it does not scan
+          your inbox. No aggregated or derived copies of your Google user data are created beyond the
+          transient text used to produce that one reply.</li>
+        <li style={S.li}><strong>Data use.</strong> That message content and your saved settings are
+          sent to Anthropic's Claude API solely to generate a single draft reply shown to you, the same
+          user. Your email address is used only to load your own settings and to meter your usage. The
+          data is used for no other purpose.</li>
+        <li style={S.li}><strong>Data transfer.</strong> The message content is transmitted to
+          <strong> Anthropic</strong>, an AI API provider, solely to generate your draft. It is not
+          sold, not shared with data brokers or advertisers, and not shared with any third party other
+          than Anthropic for that single purpose.</li>
+        <li style={S.li}><strong>Data protection.</strong> All traffic is encrypted with HTTPS/TLS in
+          transit; the backend is gated by an API key; per-user data in Supabase is isolated by
+          row-level security; and API keys and the database service key live only server-side, never in
+          the add-on, the dashboard, or any client.</li>
+        <li style={S.li}><strong>Data retention &amp; deletion.</strong> Reply Drafter does not store
+          the Gmail™ message content it drafts replies for — it passes through to generate the reply.
+          Anthropic automatically deletes API inputs and outputs within 30 days. Your settings,
+          knowledge base, and uploaded files are stored in Supabase and can be deleted from the
+          dashboard at any time; to remove your account and all data entirely, email the contact below.</li>
+      </ul>
+
+      <h2 style={S.h2}>AI/ML model training</h2>
+      <p style={S.p}>Message content is sent to Anthropic's API and is <strong>not</strong> used to
+      train or improve AI/ML models — Anthropic does not train on API inputs by default. Google
+      Workspace user data is never used to develop, improve, or train any AI/ML model beyond generating
+      that user's own draft reply.</p>
 
       <hr style={S.hr} />
       <footer style={S.foot}>
