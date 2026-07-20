@@ -39,6 +39,7 @@ const OVR_KB_CAP = 8000;  // max chars of per-user KB facts
 const OVR_TONE_CAP = 200; // max chars of per-user tone directive
 const SYSTEM_CAP = 32000; // hard cap on the fully assembled system prompt
 const KB_GUIDANCE_CAP = 16000; // max combined chars of per-user style+examples+facts (kb_entry + kb_file)
+const INSTRUCTION_CAP = 2000; // max chars of the optional per-reply user instruction (not persisted)
 
 // Anthropic pricing (USD per 1M tokens) for usage_event.est_cost_usd. Override
 // per-model via env; defaults are Sonnet-ish placeholders.
@@ -283,9 +284,15 @@ async function loadKnowledgeBase() {
 // competing words ("friendly/casual/brief/concise"), so it reliably wins over
 // style notes in the base, the append, or the KB. With no tone, the output is the
 // same files-only prompt as before (no tone framing added).
-async function buildSystemPrompt(overrides) {
+async function buildSystemPrompt(overrides, userInstruction) {
   const base = await loadSystemPrompt();
   const kb = await loadKnowledgeBase();
+
+  // Optional per-reply steer typed by the user for THIS draft only (never
+  // persisted). Sits ABOVE tone/voice/facts as the immediate, highest-priority
+  // instruction; tone/voice still govern HOW it's written.
+  const instruction =
+    typeof userInstruction === "string" ? userInstruction.trim().slice(0, INSTRUCTION_CAP) : "";
 
   const str = (v) => (typeof v === "string" ? v.trim() : "");
   const hasOvr = overrides && typeof overrides === "object";
@@ -308,6 +315,13 @@ async function buildSystemPrompt(overrides) {
   const kbStyleNote = tone ? " Any note here about writing style yields to the TONE directive." : "";
 
   let out = "";
+  // Lead with the per-reply instruction (top priority for THIS draft), then tone.
+  if (instruction) {
+    out +=
+      "IMMEDIATE INSTRUCTION FOR THIS REPLY (highest priority) — For this specific reply, the user " +
+      "has asked you to: " + instruction + " Follow this instruction for what the reply should say, " +
+      "while still respecting their tone and voice settings below.\n\n===\n\n";
+  }
   // Lead with the tone directive (primacy).
   if (toneDirective) out += toneDirective + "\n\n===\n\n";
   out += base;
@@ -389,10 +403,13 @@ app.post("/draft", async (req, res) => {
     if (!KEY) {
       return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on the server." });
     }
-    const { from = "", subject = "", body = "", userEmail = "", overrides } = req.body || {};
+    const { from = "", subject = "", body = "", userEmail = "", overrides, userInstruction } = req.body || {};
     if (!String(body).trim()) {
       return res.status(400).json({ error: "Email body is required." });
     }
+    // Optional per-reply steer for THIS draft only. Never persisted anywhere.
+    const instruction =
+      typeof userInstruction === "string" ? userInstruction.trim().slice(0, INSTRUCTION_CAP) : "";
 
     // Cost guardrails — both return 429 and SKIP the Claude call. Clients surface
     // the { error } message (Gmail card / Outlook pane) rather than crashing.
@@ -415,8 +432,8 @@ app.post("/draft", async (req, res) => {
     const effectiveOverrides = userConfig || overrides;
 
     // Fresh read of the editable prompt + KB on every request, plus the
-    // effective per-user overrides.
-    const system = await buildSystemPrompt(effectiveOverrides);
+    // effective per-user overrides and the optional per-reply instruction.
+    const system = await buildSystemPrompt(effectiveOverrides, instruction);
 
     // Weave the tone directly into the drafting instruction in the USER turn — a
     // style constraint stated next to the task is followed far more reliably than
@@ -434,6 +451,12 @@ app.post("/draft", async (req, res) => {
         `tone itself is casual.`
       : "";
 
+    // Per-reply steer stated next to the task (the most reliable spot). Governs
+    // WHAT the reply should say; the tone instruction governs HOW it reads.
+    const turnInstruction = instruction
+      ? ` For this specific reply, the user has instructed: ${instruction}. Do this in the reply.`
+      : "";
+
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -446,7 +469,7 @@ app.post("/draft", async (req, res) => {
         max_tokens: 1024,
         system,
         messages: [
-          { role: "user", content: `Draft a reply to this email.${toneInstruction}\n\n${incoming}` },
+          { role: "user", content: `Draft a reply to this email.${turnInstruction}${toneInstruction}\n\n${incoming}` },
         ],
       }),
     });
