@@ -28,6 +28,23 @@ function brandedHeader_(subtitle) {
     .setImageStyle(CardService.ImageStyle.CIRCLE);
 }
 
+// Read the optional per-reply instruction from the card's form input on the
+// compose action event. Handles both the classic e.formInput map and the newer
+// commonEventObject.formInputs shape; returns '' when empty/absent.
+function readUserInstruction_(e) {
+  try {
+    if (e && e.formInput && e.formInput.userInstruction != null) {
+      return String(e.formInput.userInstruction).trim();
+    }
+    if (e && e.commonEventObject && e.commonEventObject.formInputs &&
+        e.commonEventObject.formInputs.userInstruction) {
+      var si = e.commonEventObject.formInputs.userInstruction.stringInputs;
+      if (si && si.value && si.value.length) return String(si.value[0]).trim();
+    }
+  } catch (x) {}
+  return '';
+}
+
 // Pull a display name out of a "Name <email>" From header, falling back to the
 // raw value (or a generic label) so the card never shows an empty line.
 function senderName_(from) {
@@ -100,6 +117,11 @@ function onGmailMessageOpen(e) {
       .setBottomLabel('Opens in a compose window so you can edit before sending.')
       .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
       .setWrapText(true))
+    .addWidget(CardService.newTextInput()
+      .setFieldName('userInstruction')
+      .setTitle('How should I reply? (optional)')
+      .setHint('e.g. accept and propose Thursday, or keep it brief')
+      .setMultiline(true))
     .addWidget(CardService.newButtonSet().addButton(generateButton))
     .addWidget(CardService.newTextButton()
       .setText('Settings')
@@ -144,6 +166,10 @@ function onGenerateReply(e) {
     }
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
+
+    // Optional per-reply steer typed into the card (this draft only; not saved).
+    var instruction = readUserInstruction_(e);
+    if (instruction) payload.userInstruction = instruction;
 
     var result = callDraftBackend(payload);
     var reply = (result && result.reply ? String(result.reply) : '').trim();
