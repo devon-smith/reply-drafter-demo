@@ -16,7 +16,7 @@ const BACKEND_HOST = (() => {
 // sections whose primary action is a Save (drives the top-bar button).
 const TABS = [
   { key: "usage", label: "Usage & cost", icon: "chart" },
-  { key: "prompt", label: "Prompt & tone", icon: "star", save: true },
+  { key: "prompt", label: "Prompt & tone", icon: "star" },
   { key: "material", label: "Writing material", icon: "doc" },
   { key: "kb", label: "Knowledge base", icon: "db" },
 ];
