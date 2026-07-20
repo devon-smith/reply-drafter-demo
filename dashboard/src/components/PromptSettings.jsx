@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabaseClient.js";
 import { card, kicker, h2, label, input, muted } from "../styles.js";
 
@@ -11,12 +11,15 @@ const PRESETS = [
   { label: "Formal", value: "formal and professional" },
 ];
 
-// Edits the caller's single prompt_setting row (RLS scopes it to them). Save is
-// driven from the top-bar "Save changes" button (and ⌘S) via a dispatched event.
+// Autosaves the caller's single prompt_setting row (RLS scopes it to them).
+// Text fields debounce (~800ms after typing stops); tone chips save immediately.
+// Status shows Saving… / Saved / an error so the user knows it persisted.
 export default function PromptSettings({ email }) {
   const [tone, setTone] = useState("");
   const [append, setAppend] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(""); // "" | "saving" | "saved" | "error:<msg>"
+  const debounceRef = useRef(null);
+  const savedTimerRef = useRef(null);
 
   useEffect(() => {
     supabase
@@ -32,23 +35,57 @@ export default function PromptSettings({ email }) {
       });
   }, [email]);
 
-  async function save() {
-    setStatus("Saving…");
+  async function persist(nextTone, nextAppend) {
+    clearTimeout(savedTimerRef.current);
+    setStatus("saving");
     const { error } = await supabase.from("prompt_setting").upsert({
       user_email: email,
-      tone,
-      system_prompt_append: append,
+      tone: nextTone,
+      system_prompt_append: nextAppend,
       updated_at: new Date().toISOString(),
     });
-    setStatus(error ? "Error: " + error.message : "Saved.");
+    if (error) {
+      setStatus("error:" + (error.message || "save failed"));
+    } else {
+      setStatus("saved");
+      savedTimerRef.current = setTimeout(() => setStatus(""), 1600);
+    }
   }
 
-  // Honor the global ⌘S / top-bar "Save changes" event while this panel is mounted.
+  // Debounced save for the free-text fields; immediate save for chips.
+  function debouncedSave(nextTone, nextAppend) {
+    clearTimeout(debounceRef.current);
+    setStatus("saving");
+    debounceRef.current = setTimeout(() => persist(nextTone, nextAppend), 800);
+  }
+  function saveNow(nextTone, nextAppend) {
+    clearTimeout(debounceRef.current);
+    persist(nextTone, nextAppend);
+  }
+
+  // Keep honoring the global save event (⌘S) as an immediate flush.
   useEffect(() => {
-    const onSave = () => save();
+    const onSave = () => saveNow(tone, append);
     window.addEventListener("dashboard:save", onSave);
     return () => window.removeEventListener("dashboard:save", onSave);
   }, [tone, append, email]);
+
+  // Clear any pending timers on unmount.
+  useEffect(() => () => {
+    clearTimeout(debounceRef.current);
+    clearTimeout(savedTimerRef.current);
+  }, []);
+
+  const statusEl =
+    status === "saving" ? (
+      <span style={muted}>Saving…</span>
+    ) : status === "saved" ? (
+      <span style={{ color: "var(--ok)", fontSize: 14 }}>Saved</span>
+    ) : status.startsWith("error:") ? (
+      <span style={{ color: "var(--danger)", fontSize: 14 }}>Couldn't save — {status.slice(6)}</span>
+    ) : (
+      <span>&nbsp;</span>
+    );
 
   return (
     <section style={card}>
@@ -64,7 +101,7 @@ export default function PromptSettings({ email }) {
             <button
               key={p.value}
               type="button"
-              onClick={() => { setTone(p.value); setStatus(""); }}
+              onClick={() => { setTone(p.value); saveNow(p.value, append); }}
               style={{
                 padding: "6px 12px",
                 borderRadius: 999,
@@ -81,16 +118,21 @@ export default function PromptSettings({ email }) {
           );
         })}
       </div>
-      <input style={input} value={tone} placeholder="e.g. warm and brief" onChange={(e) => { setTone(e.target.value); setStatus(""); }} />
+      <input
+        style={input}
+        value={tone}
+        placeholder="e.g. warm and brief"
+        onChange={(e) => { const v = e.target.value; setTone(v); debouncedSave(v, append); }}
+      />
 
       <label style={label}>Extra instructions</label>
       <textarea
         style={{ ...input, minHeight: 96, lineHeight: 1.5 }}
         value={append}
         placeholder="e.g. Never use exclamation marks."
-        onChange={(e) => { setAppend(e.target.value); setStatus(""); }}
+        onChange={(e) => { const v = e.target.value; setAppend(v); debouncedSave(tone, v); }}
       />
-      <div style={{ ...muted, marginTop: 10, minHeight: 18 }}>{status}</div>
+      <div style={{ marginTop: 10, minHeight: 18 }}>{statusEl}</div>
     </section>
   );
 }
