@@ -410,6 +410,11 @@ app.post("/draft", async (req, res) => {
     // Optional per-reply steer for THIS draft only. Never persisted anywhere.
     const instruction =
       typeof userInstruction === "string" ? userInstruction.trim().slice(0, INSTRUCTION_CAP) : "";
+    // Temporary diagnostic: confirm whether the steer arrives (add-on) vs steers (prompt).
+    console.log(
+      `[draft] userInstruction len=${instruction.length}` +
+        (instruction ? ` preview=${JSON.stringify(instruction.slice(0, 80))}` : " (empty/absent)")
+    );
 
     // Cost guardrails — both return 429 and SKIP the Claude call. Clients surface
     // the { error } message (Gmail card / Outlook pane) rather than crashing.
