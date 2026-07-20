@@ -25,5 +25,8 @@
         }
       ]
     }
-  }
+  },
+  "urlFetchWhitelist": [
+    "https://reply-devon.duckdns.org/"
+  ]
 }
