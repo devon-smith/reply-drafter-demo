@@ -175,8 +175,6 @@ function onGenerateReply(e) {
     // Optional per-reply steer typed into the card, read straight from the
     // compose-action event's form inputs (this draft only; not saved).
     var instruction = readUserInstruction_(e);
-    Logger.log('[rd] userInstruction len=' + instruction.length +
-      ' formInputs=' + JSON.stringify(e && e.commonEventObject && e.commonEventObject.formInputs));
     if (instruction) payload.userInstruction = instruction;
 
     var result = callDraftBackend(payload);
