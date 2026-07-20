@@ -50,20 +50,6 @@ function readUserInstruction_(e) {
   return '';
 }
 
-// The Generate button is a COMPOSE action, whose event has historically not
-// carried this card's form inputs reliably (same class of gap as the message
-// token). So cache the instruction on every change of the field, keyed by
-// message id, and let onGenerateReply fall back to it. Returns an empty
-// response so the card doesn't visibly change while typing.
-function onInstructionChange(e) {
-  try {
-    var v = readUserInstruction_(e);
-    var id = e && e.gmail && e.gmail.messageId;
-    if (id) CacheService.getUserCache().put('rd_instr_' + id, v || '', 600);
-  } catch (x) {}
-  return CardService.newActionResponseBuilder().build();
-}
-
 // Pull a display name out of a "Name <email>" From header, falling back to the
 // raw value (or a generic label) so the card never shows an empty line.
 function senderName_(from) {
@@ -140,8 +126,7 @@ function onGmailMessageOpen(e) {
       .setFieldName('userInstruction')
       .setTitle('How should I reply? (optional)')
       .setHint('e.g. accept and propose Thursday, or keep it brief')
-      .setMultiline(true)
-      .setOnChangeAction(CardService.newAction().setFunctionName('onInstructionChange')))
+      .setMultiline(true))
     .addWidget(CardService.newButtonSet().addButton(generateButton))
     .addWidget(CardService.newTextButton()
       .setText('Settings')
@@ -187,13 +172,9 @@ function onGenerateReply(e) {
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
 
-    // Optional per-reply steer typed into the card (this draft only; not saved).
-    // Prefer the compose event's own form value; fall back to the value cached
-    // by the field's onChange handler (the compose event may not carry it).
+    // Optional per-reply steer typed into the card, read straight from the
+    // compose-action event's form inputs (this draft only; not saved).
     var instruction = readUserInstruction_(e);
-    if (!instruction && e && e.gmail && e.gmail.messageId) {
-      try { instruction = CacheService.getUserCache().get('rd_instr_' + e.gmail.messageId) || ''; } catch (cacheErr2) {}
-    }
     Logger.log('[rd] userInstruction len=' + instruction.length +
       ' formInputs=' + JSON.stringify(e && e.commonEventObject && e.commonEventObject.formInputs));
     if (instruction) payload.userInstruction = instruction;
