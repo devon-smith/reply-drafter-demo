@@ -1,18 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient.js";
 import { extractText } from "../extract.js";
-import { card, kicker, h2, btn, btnGhost, muted, mono } from "../styles.js";
+import { card, kicker, h2, btnGhost, muted, mono } from "../styles.js";
 
 // Upload writing material (past emails, a style note, a doc). We extract the text
 // in the browser and store it so drafts sound like you — no categories to pick;
 // everything uploaded is treated as voice/style guidance by the backend.
+// Files upload immediately on selection (no separate Upload button).
 const EXTRACT_CAP = 50000; // per-file stored text cap (backend caps injection again)
 
 export default function WritingMaterial({ email }) {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
-  const fileRef = useRef(null);
+  const [failed, setFailed] = useState(false);
 
   async function load() {
     const { data, error } = await supabase
@@ -26,19 +27,21 @@ export default function WritingMaterial({ email }) {
     load();
   }, [email]);
 
-  async function onUpload(e) {
-    e.preventDefault();
-    const files = fileRef.current && fileRef.current.files ? Array.from(fileRef.current.files) : [];
+  // Auto-upload as soon as files are chosen.
+  async function onFilesChosen(e) {
+    const inputEl = e.target;
+    const files = inputEl.files ? Array.from(inputEl.files) : [];
     if (!files.length) return;
     setBusy(true);
+    setFailed(false);
     let added = 0;
-    const failed = [];
+    const errors = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
-        setStatus(`Reading “${file.name}”… (${i + 1}/${files.length})`);
+        setStatus(`Uploading “${file.name}”… (${i + 1}/${files.length})`);
         const text = (await extractText(file)).slice(0, EXTRACT_CAP);
-        if (!text) { failed.push(`${file.name} (no text)`); continue; }
+        if (!text) { errors.push(`${file.name} (no readable text)`); continue; }
         // Store under the user's own path (RLS: first segment = email); index +
         // timestamp keeps paths unique even within one batch.
         const path = `${email}/${Date.now()}-${i}-${file.name}`;
@@ -54,13 +57,14 @@ export default function WritingMaterial({ email }) {
         if (ins.error) throw ins.error;
         added++;
       } catch (err) {
-        failed.push(`${file.name}: ${err && err.message ? err.message : err}`);
+        errors.push(`${file.name}: ${err && err.message ? err.message : err}`);
       }
     }
-    if (fileRef.current) fileRef.current.value = "";
+    inputEl.value = ""; // reset so the same file can be re-selected
+    setFailed(errors.length > 0);
     setStatus(
       `Added ${added} file${added === 1 ? "" : "s"}` +
-        (failed.length ? ` — failed: ${failed.join("; ")}` : ".")
+        (errors.length ? ` — failed: ${errors.join("; ")}` : ".")
     );
     setBusy(false);
     load();
@@ -68,6 +72,7 @@ export default function WritingMaterial({ email }) {
 
   async function remove(row) {
     setStatus("Removing…");
+    setFailed(false);
     await supabase.storage.from("kb-files").remove([row.storage_path]);
     await supabase.from("kb_file").delete().eq("id", row.id);
     setStatus("");
@@ -79,8 +84,8 @@ export default function WritingMaterial({ email }) {
       <span style={kicker}>Voice</span>
       <h2 style={h2}>Writing material</h2>
       <p style={{ ...muted, marginTop: 0 }}>
-        Upload past emails or a note about how you write (.txt, .md, or .pdf). Drafts will pick up
-        your voice. No need to label anything.
+        Upload past emails or a note about how you write (.txt, .md, or .pdf) — it uploads as soon as
+        you pick it, and drafts will pick up your voice. No need to label anything.
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: "16px 0" }}>
         {rows.map((r) => (
@@ -91,13 +96,10 @@ export default function WritingMaterial({ email }) {
         ))}
         {rows.length === 0 && <li style={{ color: "var(--ink-muted)", padding: "10px 0" }}>No files yet.</li>}
       </ul>
-      <form onSubmit={onUpload}>
-        <input ref={fileRef} type="file" multiple accept=".txt,.md,.text,.pdf" disabled={busy} />
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-          <button type="submit" style={btn} disabled={busy}>{busy ? "Working…" : "Upload"}</button>
-          <span style={muted}>{status}</span>
-        </div>
-      </form>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+        <input type="file" multiple accept=".txt,.md,.text,.pdf" disabled={busy} onChange={onFilesChosen} />
+        <span style={{ color: failed ? "var(--danger)" : "var(--ink-muted)", fontSize: 14 }}>{status}</span>
+      </div>
     </section>
   );
 }
