@@ -5,7 +5,9 @@
   "type": "commonjs",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "test": "node server/test/prompt-assembly.test.js",
+    "suggest-eval": "node server/scripts/suggest-eval.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",

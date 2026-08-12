@@ -418,6 +418,61 @@ function requireAuth(req) {
   return typeof provided === "string" && timingSafeEqualStr(provided, API_SECRET);
 }
 
+// Known analytics tags for how a draft was steered.
+const KNOWN_STEER_SOURCES = ["static_chip", "smart_chip", "saved_steer", "free_text", "legacy"];
+
+// Resolve the per-reply steer for THIS draft only (never persisted). Pure and
+// exported so the precedence + backward-compat behavior is unit-testable.
+// Sources, highest precedence first:
+//   1. steer_text        — free-text typed steer (v2 free-text chip / footer)
+//   2. steer_preset_id   — a static catalog chip; server owns the steer_text
+//   3. userInstruction   — legacy field (v1 "How should I reply?"); unchanged
+// A pre-v2 payload sends none of the new fields, so `instruction` collapses to
+// exactly the legacy userInstruction value and the assembled prompt is unchanged.
+// Returns { instruction, steerSource } — steerSource is "none" with no steer.
+function resolveSteer({ steer_text, steer_preset_id, steer_source, userInstruction } = {}) {
+  const presetText = steerTextForPreset(steer_preset_id);
+  const rawSteer =
+    (typeof steer_text === "string" && steer_text.trim()) ||
+    presetText ||
+    (typeof userInstruction === "string" ? userInstruction : "") ||
+    "";
+  const instruction = String(rawSteer).trim().slice(0, INSTRUCTION_CAP);
+
+  let steerSource = "none";
+  if (instruction) {
+    if (typeof steer_source === "string" && KNOWN_STEER_SOURCES.includes(steer_source)) {
+      steerSource = steer_source; // trust an explicit, known client tag
+    } else if (steer_text && String(steer_text).trim()) {
+      steerSource = "free_text";
+    } else if (presetText) {
+      steerSource = "static_chip";
+    } else {
+      steerSource = "legacy";
+    }
+  }
+  return { instruction, steerSource };
+}
+
+// Assemble the USER-turn content: the task + the per-reply steer + tone + length
+// nudges, stated next to the task (the most reliable spot for style constraints).
+// Pure and exported so backward-compat is unit-testable. With no length nudge the
+// length segment is empty, so a pre-v2 payload yields a byte-identical turn to
+// before `length` existed.
+function buildDraftTurn({ instruction = "", tone = "", lengthHint = "", incoming = "" }) {
+  const toneInstruction = tone
+    ? ` Write the reply in a ${tone} register — this style is REQUIRED and takes ` +
+      `priority over any default "concise/professional" phrasing and over any ` +
+      `"friendly/casual/brief" note; do not default to a warm or casual style unless the ` +
+      `tone itself is casual.`
+    : "";
+  const turnInstruction = instruction
+    ? ` For this specific reply, the user has instructed: ${instruction}. Do this in the reply.`
+    : "";
+  const lengthInstruction = lengthHint ? ` ${lengthHint}` : "";
+  return `Draft a reply to this email.${turnInstruction}${toneInstruction}${lengthInstruction}\n\n${incoming}`;
+}
+
 app.post("/draft", async (req, res) => {
   try {
     if (!requireAuth(req)) {
@@ -443,36 +498,12 @@ app.post("/draft", async (req, res) => {
       return res.status(400).json({ error: "Email body is required." });
     }
 
-    // Resolve the per-reply steer for THIS draft only (never persisted). Sources,
-    // in precedence order:
-    //   1. steer_text        — free-text typed steer (v2 free-text chip / footer)
-    //   2. steer_preset_id   — a static catalog chip; server owns the steer_text
-    //   3. userInstruction   — legacy field (v1 "How should I reply?"); unchanged
-    // Old Outlook/Gmail payloads send none of the new fields, so `instruction`
-    // resolves exactly as before and the assembled prompt is byte-identical.
-    const presetText = steerTextForPreset(steer_preset_id);
-    const rawSteer =
-      (typeof steer_text === "string" && steer_text.trim()) ||
-      presetText ||
-      (typeof userInstruction === "string" ? userInstruction : "") ||
-      "";
-    const instruction = String(rawSteer).trim().slice(0, INSTRUCTION_CAP);
-
-    // Where the steer came from, for usage analytics only. Trust an explicit
-    // client-provided source; otherwise infer it. "none" when there is no steer.
-    const KNOWN_SOURCES = ["static_chip", "smart_chip", "saved_steer", "free_text", "legacy"];
-    let steerSource = "none";
-    if (instruction) {
-      if (typeof steer_source === "string" && KNOWN_SOURCES.includes(steer_source)) {
-        steerSource = steer_source;
-      } else if (steer_text && String(steer_text).trim()) {
-        steerSource = "free_text";
-      } else if (presetText) {
-        steerSource = "static_chip";
-      } else {
-        steerSource = "legacy";
-      }
-    }
+    const { instruction, steerSource } = resolveSteer({
+      steer_text,
+      steer_preset_id,
+      steer_source,
+      userInstruction,
+    });
 
     // Optional per-reply tone + length nudges (this draft only; do not persist and
     // do not alter the user's saved tone). tone_override layers a one-off register;
@@ -524,21 +555,7 @@ app.post("/draft", async (req, res) => {
       typeof effectiveOverrides.tone === "string"
         ? effectiveOverrides.tone.trim().slice(0, OVR_TONE_CAP)
         : "";
-    const toneInstruction = toneVal
-      ? ` Write the reply in a ${toneVal} register — this style is REQUIRED and takes ` +
-        `priority over any default "concise/professional" phrasing and over any ` +
-        `"friendly/casual/brief" note; do not default to a warm or casual style unless the ` +
-        `tone itself is casual.`
-      : "";
-
-    // Per-reply steer stated next to the task (the most reliable spot). Governs
-    // WHAT the reply should say; the tone instruction governs HOW it reads.
-    const turnInstruction = instruction
-      ? ` For this specific reply, the user has instructed: ${instruction}. Do this in the reply.`
-      : "";
-
-    // Optional one-off length nudge stated next to the task.
-    const lengthInstruction = lengthHint ? ` ${lengthHint}` : "";
+    const userTurn = buildDraftTurn({ instruction, tone: toneVal, lengthHint, incoming });
 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -551,9 +568,7 @@ app.post("/draft", async (req, res) => {
         model: MODEL,
         max_tokens: 1024,
         system,
-        messages: [
-          { role: "user", content: `Draft a reply to this email.${turnInstruction}${toneInstruction}${lengthInstruction}\n\n${incoming}` },
-        ],
+        messages: [{ role: "user", content: userTurn }],
       }),
     });
 
@@ -837,5 +852,12 @@ function checkEnv() {
   );
 }
 
-checkEnv();
-app.listen(PORT, () => console.log(`reply-drafter listening on :${PORT} (model ${MODEL})`));
+// Export pure internals for unit tests. Only start the server when run directly
+// (`node server/index.js`) — requiring the module for tests must NOT bind a port
+// or run the boot self-check.
+module.exports = { buildSystemPrompt, buildDraftTurn, resolveSteer, parseSuggestChips, staticChips };
+
+if (require.main === module) {
+  checkEnv();
+  app.listen(PORT, () => console.log(`reply-drafter listening on :${PORT} (model ${MODEL})`));
+}

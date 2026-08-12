@@ -8,8 +8,14 @@
 --                  'saved_steer', 'free_text', 'legacy', or 'none'. Null/absent
 --                  on suggest rows and on pre-v2 rows.
 --
--- Both are nullable with a safe default, so existing server inserts (which don't
--- yet set them) and historical rows remain valid.
+-- Deploy-window safety (migration is applied BEFORE the backend rebuild, so the
+-- OLD backend keeps inserting rows that set neither column):
+--   * kind is NOT NULL DEFAULT 'draft'. Postgres backfills every existing row to
+--     'draft' and every old-backend insert that omits kind also gets 'draft', so
+--     no insert fails during the window AND all historical/in-window usage counts
+--     toward the drafting daily cap (which filters kind='draft'). This inclusion
+--     is deliberate — pre-v2 usage was all drafting.
+--   * steer_source is nullable (null on suggest rows and on pre-v2 draft rows).
 alter table public.usage_event
   add column if not exists kind         text not null default 'draft',
   add column if not exists steer_source text;
