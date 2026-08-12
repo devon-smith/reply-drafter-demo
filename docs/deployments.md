@@ -85,13 +85,37 @@ this behavior and the on-open classification.
 
 ## v2 rollout checklist (owner-side)
 
-1. Apply migrations `0008` + `0009` (Supabase) before deploying the backend.
-2. VPS: `git pull && docker compose up -d --build`; check `/health` and smoke
-   `/suggest` (must 200 with chips). Confirm the boot log's `[boot] suggest:` line.
-3. `cd gmail-addon && clasp push` (HEAD deployment — family sees it on refresh).
-   Optionally set `SUGGEST_ENABLED` in Script Properties (default on).
-4. Vercel auto-deploys the dashboard from `main` (Saved steers tab + usage split).
-5. Regression: verify the **Outlook** pane still drafts (its `/draft` payload is
-   unchanged) and a plain Gmail "Generate reply" with no chip still works.
-6. New Marketplace screenshots showing the chips (listing content only — no scope
-   change, so no new review).
+Merge ≠ one deploy here: Vercel auto-deploys the dashboard on merge, but the VPS
+and clasp are manual. **Invariant: steps 1–2 happen BEFORE the merge (step 3);**
+the rest is just speed.
+
+1. **Apply migrations `0008` + `0009` to Supabase.** Additive and safe while the
+   old backend runs (`0008` backfills `kind='draft'`, so old inserts keep working
+   and pre-v2 usage still counts toward the drafting cap).
+2. **Set the `SUGGEST_*` envs on the VPS** (all optional; the boot self-check
+   names anything missing — a clean `[boot] suggest:` line means it's wired).
+3. **Merge the PR** → Vercel auto-deploys the dashboard. (The Saved steers tab may
+   error against the old backend for a few minutes — acceptable.)
+4. **VPS pull + rebuild immediately:** `git pull && docker compose up -d --build`;
+   confirm `/health` and a clean boot self-check, smoke `/suggest` (200 + chips).
+5. **`cd gmail-addon && clasp push`** to HEAD; run the self-tests below (chip
+   eval + latency sample). Optionally set `SUGGEST_ENABLED` (default on).
+6. **Only then version-bump the published deployment** for the family.
+7. **Screenshots** for the Marketplace republish batch (listing content only — no
+   scope change, so no new review).
+
+### Acceptance gates
+
+- **Backward-compat (off-box, run anytime):** `npm test` — asserts steer
+  precedence, byte-identical legacy user turns, and unchanged system-prompt
+  ordering with no v2 text leaking in.
+- **Chip quality + latency (live, at step 5, before the step-6 promote):**
+  ```bash
+  SUGGEST_URL=https://reply-devon.duckdns.org/suggest API_SECRET=<secret> \
+    npm run suggest-eval -- --bust        # cold latency; drop --bust for realistic
+  ```
+  Passes when p95 ≤ 3.5s (auto) and ≥16/20 emails have a tap-worthy chip (manual,
+  from the printed chip lists). If either fails: set `SUGGEST_ENABLED='false'` and
+  ship the static-chip card (still strictly better than v1).
+- **Reply-not-reply-all (live):** on one multi-recipient thread, confirm a chip
+  drafts a reply to the sender only. The code uses `createDraftReply`; verify live.
