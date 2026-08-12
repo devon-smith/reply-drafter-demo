@@ -113,6 +113,31 @@ is slow, over budget, disabled, or errors. The panel never blocks on it.
 
 ---
 
+## `POST /steers` (v2)
+
+Return a user's **saved steers** (dashboard-managed reusable intents) for the
+add-on to render as extra chips. Read-only from the client; writes happen in the
+dashboard under RLS. **Fail-safe:** always `200` with a `steers` array — empty
+when Supabase is off, the user is unknown, or on any error.
+
+### Request
+
+| field       | type   | req? | notes |
+|-------------|--------|------|-------|
+| `userEmail` | string | yes  | whose saved steers to load (max 10 returned) |
+
+### Response
+
+```json
+{ "steers": [ { "id": "uuid", "label": "Decline politely", "steer_text": "Decline the invite warmly…" } ] }
+```
+
+A client sends a tapped saved steer back to `/draft` as `steer_text` +
+`steer_source:"saved_steer"`. Saved steers live in `public.saved_steers`
+(migration `0009`): RLS-isolated per user, capped at 10 by a DB trigger.
+
+---
+
 ## `usage_event` columns (v2)
 
 Migration `0008` adds:

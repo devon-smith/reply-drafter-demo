@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient.js";
 import KbManager from "./components/KbManager.jsx";
 import PromptSettings from "./components/PromptSettings.jsx";
 import WritingMaterial from "./components/WritingMaterial.jsx";
+import SavedSteers from "./components/SavedSteers.jsx";
 import Usage from "./components/Usage.jsx";
 import { wrap, card, btn, btnGhost, muted, mono } from "./styles.js";
 
@@ -12,12 +13,13 @@ const BACKEND_HOST = (() => {
   try { return new URL(BACKEND).host; } catch { return BACKEND.replace(/^https?:\/\//, ""); }
 })();
 
-// Tabs, in order. The numeric hotkey (1–4) maps to the index. `save` marks the
+// Tabs, in order. The numeric hotkey (1–5) maps to the index. `save` marks the
 // sections whose primary action is a Save (drives the top-bar button).
 const TABS = [
   { key: "usage", label: "Usage & cost", icon: "chart" },
   { key: "prompt", label: "Prompt & tone", icon: "star" },
   { key: "material", label: "Writing material", icon: "doc" },
+  { key: "steers", label: "Saved steers", icon: "bolt" },
   { key: "kb", label: "Knowledge base", icon: "db" },
 ];
 
@@ -153,6 +155,7 @@ export default function App() {
           {tab === "usage" && <Usage />}
           {tab === "prompt" && <PromptSettings email={session.user.email} />}
           {tab === "material" && <WritingMaterial email={session.user.email} />}
+          {tab === "steers" && <SavedSteers email={session.user.email} />}
           {tab === "kb" && <KbManager email={session.user.email} />}
         </main>
       </div>
@@ -249,6 +252,7 @@ function NavIcon({ name, active }) {
   if (name === "chart") return (<svg {...p}><path d="M2 13.5h12" /><rect x="3" y="8" width="2.5" height="4" /><rect x="6.75" y="5" width="2.5" height="7" /><rect x="10.5" y="3" width="2.5" height="9" /></svg>);
   if (name === "star") return (<svg {...p} fill={active ? "var(--accent)" : "none"}><path d="M8 2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.8 4.4 13.9l.7-4L2.2 6.3l4-.6L8 2z" /></svg>);
   if (name === "doc") return (<svg {...p}><path d="M4 2h5l3 3v9H4V2z" /><path d="M9 2v3h3" /></svg>);
+  if (name === "bolt") return (<svg {...p} fill={active ? "var(--accent)" : "none"}><path d="M8.5 1.5L3 9h4l-.5 5.5L12 7H8l.5-5.5z" /></svg>);
   return (<svg {...p}><ellipse cx="8" cy="4" rx="5" ry="2" /><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" /><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" /></svg>);
 }
 function SearchIcon() {

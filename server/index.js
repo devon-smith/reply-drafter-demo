@@ -758,6 +758,48 @@ app.post("/suggest", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// /steers — a user's saved steers (managed in the dashboard), for the add-on to
+// render as extra chips. Read-only from the client's perspective; writes happen
+// in the dashboard under RLS. Fail-safe: always 200 with a `steers` array (empty
+// when Supabase is off, the user is unknown, or on any error).
+// ---------------------------------------------------------------------------
+async function loadSavedSteers(userEmail) {
+  if (!supabase) return [];
+  const email = String(userEmail || "").trim().toLowerCase();
+  if (!email) return [];
+  try {
+    const { data, error } = await supabase
+      .from("saved_steers")
+      .select("id,label,steer_text,sort_order")
+      .eq("user_email", email)
+      .order("sort_order", { ascending: true })
+      .limit(10);
+    if (error) {
+      console.error("saved steers load failed:", error.message);
+      return [];
+    }
+    return (data || []).map((r) => ({
+      id: r.id,
+      label: String(r.label || "").slice(0, 40),
+      steer_text: String(r.steer_text || "").slice(0, INSTRUCTION_CAP),
+    }));
+  } catch (e) {
+    console.error("saved steers load failed:", (e && e.message) || e);
+    return [];
+  }
+}
+
+app.post("/steers", async (req, res) => {
+  try {
+    if (!requireAuth(req)) return res.status(401).json({ error: "Unauthorized" });
+    const { userEmail = "" } = req.body || {};
+    return res.json({ steers: await loadSavedSteers(userEmail) });
+  } catch (e) {
+    return res.json({ steers: [] });
+  }
+});
+
 // Boot-time env self-check. Logs the NAMES of missing/placeholder/malformed
 // required vars (never values) so a silent misconfig is visible in the container
 // logs instead of surfacing later as a mystery 401/500/empty-config. Catches the
