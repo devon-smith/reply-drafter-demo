@@ -28,26 +28,58 @@ function brandedHeader_(subtitle) {
     .setImageStyle(CardService.ImageStyle.CIRCLE);
 }
 
-// Read the optional per-reply instruction from the card's form input on the
-// compose action event. Handles both the classic e.formInput map and the newer
-// commonEventObject.formInputs shape; returns '' when empty/absent.
-function readUserInstruction_(e) {
+// Read a named form input from the (compose) action event. Handles both the
+// newer commonEventObject.formInputs shape and the classic e.formInput map;
+// returns '' when empty/absent.
+function readFormValue_(e, name) {
   try {
-    // Canonical Workspace add-on path first.
     if (e && e.commonEventObject && e.commonEventObject.formInputs) {
-      var f = e.commonEventObject.formInputs.userInstruction;
+      var f = e.commonEventObject.formInputs[name];
       if (f && f.stringInputs && f.stringInputs.value && f.stringInputs.value.length) {
         var v = String(f.stringInputs.value[0]).trim();
         if (v) return v;
       }
     }
-    // Legacy accessor fallback.
-    if (e && e.formInput && e.formInput.userInstruction != null) {
-      var v2 = String(e.formInput.userInstruction).trim();
+    if (e && e.formInput && e.formInput[name] != null) {
+      var v2 = String(e.formInput[name]).trim();
       if (v2) return v2;
     }
   } catch (x) {}
   return '';
+}
+
+// Read a named ACTION parameter (set via Action.setParameters on a chip). These
+// ride the compose action alongside the form inputs; returns '' when absent.
+function readParam_(e, name) {
+  try {
+    if (e && e.commonEventObject && e.commonEventObject.parameters &&
+        e.commonEventObject.parameters[name] != null) {
+      return String(e.commonEventObject.parameters[name]);
+    }
+    if (e && e.parameters && e.parameters[name] != null) return String(e.parameters[name]);
+  } catch (x) {}
+  return '';
+}
+
+// A ButtonSet of one-tap intent chips built from the static catalog
+// (SteerCatalog.gs). Each chip is a compose action that generates the reply and
+// opens the draft in ONE tap, carrying its preset id as an action parameter — the
+// backend resolves the authoritative steer text from that id.
+function steerChipButtons_() {
+  var set = CardService.newButtonSet();
+  for (var i = 0; i < STEER_PRESETS.length; i++) {
+    var p = STEER_PRESETS[i];
+    var action = CardService.newAction()
+      .setFunctionName('onGenerateReply')
+      .setLoadIndicator(CardService.LoadIndicator.SPINNER)
+      .setParameters({ steer_preset_id: p.id, steer_source: 'static_chip' });
+    set.addButton(CardService.newTextButton()
+      .setText(p.label)
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor(ACCENT)
+      .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT));
+  }
+  return set;
 }
 
 // Pull a display name out of a "Name <email>" From header, falling back to the
@@ -82,17 +114,18 @@ function onHomepage(e) {
 // Contextual trigger: fires on every message open. Render a cheap card with a
 // button; the token-spending model call happens only when the button is clicked.
 function onGmailMessageOpen(e) {
-  var action = CardService.newAction()
+  // Default "Generate reply" button — no preset. Uses whatever the user typed in
+  // the free-text steer (if anything); otherwise a plain, unsteered draft.
+  var generateAction = CardService.newAction()
     .setFunctionName('onGenerateReply')
     .setLoadIndicator(CardService.LoadIndicator.SPINNER);
-
   var generateButton = CardService.newTextButton()
     .setText('Generate reply')
     .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
     .setBackgroundColor(ACCENT)
-    .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT);
+    .setComposeAction(generateAction, CardService.ComposedEmailType.REPLY_AS_DRAFT);
 
-  var section = CardService.newCardSection();
+  var contextSection = CardService.newCardSection();
 
   // Contextual "replying to" line so the card reflects the actual email.
   // Best-effort: a metadata read failure must never block the card.
@@ -106,35 +139,60 @@ function onGmailMessageOpen(e) {
         try { CacheService.getUserCache().put('rd_tok_' + e.gmail.messageId, e.gmail.accessToken, 600); } catch (cacheErr) {}
       }
       var m = GmailApp.getMessageById(e.gmail.messageId);
-      section.addWidget(CardService.newDecoratedText()
+      contextSection.addWidget(CardService.newDecoratedText()
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.PERSON))
         .setTopLabel('Replying to')
         .setText(senderName_(m.getFrom()))
         .setBottomLabel(m.getSubject() || '(no subject)')
         .setWrapText(true));
-      section.addWidget(CardService.newDivider());
     }
   } catch (ignore) {}
 
-  section
-    .addWidget(CardService.newDecoratedText()
-      .setText('Draft a reply with Claude')
-      .setBottomLabel('Opens in a compose window so you can edit before sending.')
-      .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
-      .setWrapText(true))
+  // One-tap intent chips: pick an intent and the draft generates + opens in a
+  // single tap. Each chip carries its preset id; the backend resolves the steer.
+  var chipsSection = CardService.newCardSection()
+    .setHeader('Reply in one tap')
+    .addWidget(steerChipButtons_());
+
+  // Free-text steer + the default generate button, for anything the chips don't
+  // cover. Field name kept as userInstruction for backward compatibility.
+  var steerSection = CardService.newCardSection()
     .addWidget(CardService.newTextInput()
       .setFieldName('userInstruction')
-      .setTitle('How should I reply? (optional)')
+      .setTitle('Or say how to reply (optional)')
       .setHint('e.g. accept and propose Thursday, or keep it brief')
       .setMultiline(true))
-    .addWidget(CardService.newButtonSet().addButton(generateButton))
+    .addWidget(CardService.newButtonSet().addButton(generateButton));
+
+  // Advanced (collapsed by default): one-off tone + length nudges for this reply.
+  var advancedSection = CardService.newCardSection()
+    .setHeader('Advanced')
+    .setCollapsible(true)
+    .setNumUncollapsibleWidgets(0)
+    .addWidget(CardService.newTextInput()
+      .setFieldName('toneOverride')
+      .setTitle('Tone for this reply (optional)')
+      .setHint('e.g. formal, warm, direct'))
+    .addWidget(CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.DROPDOWN)
+      .setFieldName('length')
+      .setTitle('Length')
+      .addItem('Auto', 'medium', true)
+      .addItem('Short', 'short', false)
+      .addItem('Longer', 'long', false));
+
+  var footerSection = CardService.newCardSection()
     .addWidget(CardService.newTextButton()
       .setText('Settings')
       .setOnClickAction(CardService.newAction().setFunctionName('onOpenSettings')));
 
   return CardService.newCardBuilder()
     .setHeader(brandedHeader_('Powered by Claude'))
-    .addSection(section)
+    .addSection(contextSection)
+    .addSection(chipsSection)
+    .addSection(steerSection)
+    .addSection(advancedSection)
+    .addSection(footerSection)
     .build();
 }
 
@@ -172,10 +230,22 @@ function onGenerateReply(e) {
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
 
-    // Optional per-reply steer typed into the card, read straight from the
-    // compose-action event's form inputs (this draft only; not saved).
-    var instruction = readUserInstruction_(e);
-    if (instruction) payload.userInstruction = instruction;
+    // Per-reply steer (this draft only; never saved). Precedence: free text the
+    // user typed wins over a tapped chip (it is more specific); otherwise the
+    // chip's preset id drives the steer. Tone + length are optional one-off nudges.
+    var freeText = readFormValue_(e, 'userInstruction');
+    var presetId = readParam_(e, 'steer_preset_id');
+    if (freeText) {
+      payload.steer_text = freeText;
+      payload.steer_source = 'free_text';
+    } else if (presetId) {
+      payload.steer_preset_id = presetId;
+      payload.steer_source = 'static_chip';
+    }
+    var tone = readFormValue_(e, 'toneOverride');
+    if (tone) payload.tone_override = tone;
+    var length = readFormValue_(e, 'length');
+    if (length && length !== 'medium') payload.length = length;
 
     var result = callDraftBackend(payload);
     var reply = (result && result.reply ? String(result.reply) : '').trim();
