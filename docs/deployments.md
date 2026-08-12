@@ -60,3 +60,38 @@ flow (build-time), not from the running backend. New env is all optional
 - **The model call is on the button/chip tap, never on open** (contextual triggers
   fire on every message open). `/suggest` is the one exception, and it is capped,
   cached, and fail-safe so an open never blocks or burns budget.
+
+## v2 cost review (smart chips)
+
+The new per-open cost is the `/suggest` Haiku classification. Ballpark, at the
+default `$1 / $5` per-Mtok Haiku pricing:
+
+- Typical email: ~250-token system + ~500-token email in, ~100 tokens out ≈
+  **$0.0009/open**. Worst case (a full 16k-char email) ≈ **$0.0045/open** — under
+  the ≤$0.005/open target.
+- The server **LRU cache** collapses repeat opens of the same message to $0, and
+  contextual triggers reopen the same messages often, so the *effective* per-open
+  cost is well below the per-call figure.
+- `SUGGEST_DAILY_TOKEN_CAP` (default 200000 tok/user/day ≈ a few hundred opens)
+  bounds the daily worst case to well under ~$0.25/user/day; past the cap the
+  panel silently serves the static catalog.
+- Drafting cost is unchanged (still Sonnet, on tap). `usage_event.kind` splits the
+  two so the dashboard shows suggest spend separately.
+
+**Kill switch:** set the add-on Script Property `SUGGEST_ENABLED='false'` to stop
+all per-open classification instantly (no redeploy) — the panel then shows the
+instant static catalog and sends nothing on open. The `/privacy` policy documents
+this behavior and the on-open classification.
+
+## v2 rollout checklist (owner-side)
+
+1. Apply migrations `0008` + `0009` (Supabase) before deploying the backend.
+2. VPS: `git pull && docker compose up -d --build`; check `/health` and smoke
+   `/suggest` (must 200 with chips). Confirm the boot log's `[boot] suggest:` line.
+3. `cd gmail-addon && clasp push` (HEAD deployment — family sees it on refresh).
+   Optionally set `SUGGEST_ENABLED` in Script Properties (default on).
+4. Vercel auto-deploys the dashboard from `main` (Saved steers tab + usage split).
+5. Regression: verify the **Outlook** pane still drafts (its `/draft` payload is
+   unchanged) and a plain Gmail "Generate reply" with no chip still works.
+6. New Marketplace screenshots showing the chips (listing content only — no scope
+   change, so no new review).
