@@ -106,6 +106,13 @@ function Privacy() {
           data-retention policy</a>.</li>
         <li style={S.li}>The generated text is placed into a Gmail™ <strong>draft you can edit</strong>.
           Nothing is ever sent on your behalf — you review and send every reply yourself.</li>
+        <li style={S.li}>To offer one-tap reply suggestions, when you open a message the add-on may
+          send that message to the same backend for a brief automated classification by a small,
+          fast Claude model, which returns a few suggested reply intents. This uses the same private
+          backend and Anthropic API under the same 30-day retention terms, is <strong>not</strong>
+          used to train models, and the message is <strong>not stored</strong>. This can be turned
+          off for the whole group; with it off, only fixed, generic suggestions are shown and no
+          message is sent on open.</li>
       </ul>
 
       <h2 style={S.h2}>What is stored, and where</h2>
