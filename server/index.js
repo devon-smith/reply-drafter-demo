@@ -4,6 +4,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
 const crypto = require("crypto");
+const { steerTextForPreset, publicPresets } = require("./steerCatalog");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,20 @@ const DAILY_TOKEN_CAP = numEnv(process.env.DAILY_TOKEN_CAP, 500000);
 const DAILY_REQUEST_CAP = numEnv(process.env.DAILY_REQUEST_CAP, 100);
 const RATE_LIMIT_PER_MIN = numEnv(process.env.RATE_LIMIT_PER_MIN, 10);
 const rlHits = new Map(); // rate-limit key -> array of request timestamps (ms)
+
+// Smart-chip classification (/suggest). A cheap, fast model proposes up to three
+// contextual reply intents on message open. Everything here is fail-safe: the
+// panel shows the STATIC catalog if suggestion is slow, over budget, or errors —
+// the model call is raced against SUGGEST_TIMEOUT_MS server-side (UrlFetchApp has
+// no per-call timeout, so the deadline MUST be enforced here, never client-side).
+const SUGGEST_MODEL = process.env.SUGGEST_MODEL || "claude-haiku-4-5-20251001";
+const SUGGEST_TIMEOUT_MS = numEnv(process.env.SUGGEST_TIMEOUT_MS, 2500);
+const SUGGEST_DAILY_TOKEN_CAP = numEnv(process.env.SUGGEST_DAILY_TOKEN_CAP, 200000);
+const SUGGEST_LRU_TTL_S = numEnv(process.env.SUGGEST_LRU_TTL_S, 3600);
+// Haiku pricing (USD per 1M tokens) for /suggest metering. Cheap vs the drafting
+// model; overridable per-deploy.
+const SUGGEST_PRICE_INPUT_PER_MTOK = numEnv(process.env.SUGGEST_PRICE_INPUT_PER_MTOK, 1);
+const SUGGEST_PRICE_OUTPUT_PER_MTOK = numEnv(process.env.SUGGEST_PRICE_OUTPUT_PER_MTOK, 5);
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -158,12 +173,17 @@ function capGuidance(parts, budget) {
 // Durable usage/cost logging. Inserts one usage_event via the service key after a
 // successful Claude call. Fire-and-forget and fully guarded — a logging failure
 // must NEVER affect the /draft response.
-async function logUsage(userEmail, usage, model) {
+async function logUsage(userEmail, usage, model, opts) {
   if (!supabase || !usage) return;
   try {
+    const kind = (opts && opts.kind) || "draft";
+    const steerSource = (opts && opts.steerSource) || null;
+    // Suggest calls use the cheaper Haiku pricing; drafts use the drafting model's.
+    const priceIn = kind === "suggest" ? SUGGEST_PRICE_INPUT_PER_MTOK : PRICE_INPUT_PER_MTOK;
+    const priceOut = kind === "suggest" ? SUGGEST_PRICE_OUTPUT_PER_MTOK : PRICE_OUTPUT_PER_MTOK;
     const inTok = Number(usage.input_tokens) || 0;
     const outTok = Number(usage.output_tokens) || 0;
-    const est = (inTok / 1e6) * PRICE_INPUT_PER_MTOK + (outTok / 1e6) * PRICE_OUTPUT_PER_MTOK;
+    const est = (inTok / 1e6) * priceIn + (outTok / 1e6) * priceOut;
     const email = String(userEmail || "").trim().toLowerCase() || null;
     const { error } = await supabase.from("usage_event").insert({
       user_email: email,
@@ -171,6 +191,8 @@ async function logUsage(userEmail, usage, model) {
       output_tokens: outTok,
       model,
       est_cost_usd: Number(est.toFixed(6)),
+      kind,
+      steer_source: steerSource,
     });
     if (error) console.error("usage log failed:", error.message);
   } catch (e) {
@@ -213,6 +235,7 @@ async function overDailyCap(userEmail) {
       .from("usage_event")
       .select("input_tokens,output_tokens")
       .eq("user_email", email)
+      .eq("kind", "draft")
       .gte("ts", start.toISOString());
     if (error) {
       console.error("daily cap check failed:", error.message);
@@ -403,13 +426,66 @@ app.post("/draft", async (req, res) => {
     if (!KEY) {
       return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on the server." });
     }
-    const { from = "", subject = "", body = "", userEmail = "", overrides, userInstruction } = req.body || {};
+    const {
+      from = "",
+      subject = "",
+      body = "",
+      userEmail = "",
+      overrides,
+      userInstruction,
+      steer_text,
+      steer_preset_id,
+      steer_source,
+      tone_override,
+      length,
+    } = req.body || {};
     if (!String(body).trim()) {
       return res.status(400).json({ error: "Email body is required." });
     }
-    // Optional per-reply steer for THIS draft only. Never persisted anywhere.
-    const instruction =
-      typeof userInstruction === "string" ? userInstruction.trim().slice(0, INSTRUCTION_CAP) : "";
+
+    // Resolve the per-reply steer for THIS draft only (never persisted). Sources,
+    // in precedence order:
+    //   1. steer_text        — free-text typed steer (v2 free-text chip / footer)
+    //   2. steer_preset_id   — a static catalog chip; server owns the steer_text
+    //   3. userInstruction   — legacy field (v1 "How should I reply?"); unchanged
+    // Old Outlook/Gmail payloads send none of the new fields, so `instruction`
+    // resolves exactly as before and the assembled prompt is byte-identical.
+    const presetText = steerTextForPreset(steer_preset_id);
+    const rawSteer =
+      (typeof steer_text === "string" && steer_text.trim()) ||
+      presetText ||
+      (typeof userInstruction === "string" ? userInstruction : "") ||
+      "";
+    const instruction = String(rawSteer).trim().slice(0, INSTRUCTION_CAP);
+
+    // Where the steer came from, for usage analytics only. Trust an explicit
+    // client-provided source; otherwise infer it. "none" when there is no steer.
+    const KNOWN_SOURCES = ["static_chip", "smart_chip", "saved_steer", "free_text", "legacy"];
+    let steerSource = "none";
+    if (instruction) {
+      if (typeof steer_source === "string" && KNOWN_SOURCES.includes(steer_source)) {
+        steerSource = steer_source;
+      } else if (steer_text && String(steer_text).trim()) {
+        steerSource = "free_text";
+      } else if (presetText) {
+        steerSource = "static_chip";
+      } else {
+        steerSource = "legacy";
+      }
+    }
+
+    // Optional per-reply tone + length nudges (this draft only; do not persist and
+    // do not alter the user's saved tone). tone_override layers a one-off register;
+    // length maps to a soft length hint woven into the drafting turn.
+    const toneOverride =
+      typeof tone_override === "string" ? tone_override.trim().slice(0, OVR_TONE_CAP) : "";
+    const LENGTH_HINTS = {
+      short: "Keep the reply short — a few sentences at most.",
+      medium: "",
+      long: "A slightly longer, more detailed reply is fine here.",
+    };
+    const lengthHint =
+      typeof length === "string" && LENGTH_HINTS[length] ? LENGTH_HINTS[length] : "";
 
     // Cost guardrails — both return 429 and SKIP the Claude call. Clients surface
     // the { error } message (Gmail card / Outlook pane) rather than crashing.
@@ -428,8 +504,12 @@ app.post("/draft", async (req, res) => {
     // Per-user config: a user's Supabase rows (KB + prompt/tone) supersede any
     // request-body overrides; with no user / no rows / no Supabase we fall back
     // to the request overrides, then to the mounted file defaults.
-    const userConfig = await loadUserConfig(userEmail);
-    const effectiveOverrides = userConfig || overrides;
+    const baseOverrides = await loadUserConfig(userEmail) || overrides;
+    // A per-reply tone_override wins for THIS draft only, layered on top without
+    // mutating the user's saved config. Absent -> effectiveOverrides === base.
+    const effectiveOverrides = toneOverride
+      ? Object.assign({}, baseOverrides || {}, { tone: toneOverride })
+      : baseOverrides;
 
     // Fresh read of the editable prompt + KB on every request, plus the
     // effective per-user overrides and the optional per-reply instruction.
@@ -457,6 +537,9 @@ app.post("/draft", async (req, res) => {
       ? ` For this specific reply, the user has instructed: ${instruction}. Do this in the reply.`
       : "";
 
+    // Optional one-off length nudge stated next to the task.
+    const lengthInstruction = lengthHint ? ` ${lengthHint}` : "";
+
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -469,7 +552,7 @@ app.post("/draft", async (req, res) => {
         max_tokens: 1024,
         system,
         messages: [
-          { role: "user", content: `Draft a reply to this email.${turnInstruction}${toneInstruction}\n\n${incoming}` },
+          { role: "user", content: `Draft a reply to this email.${turnInstruction}${toneInstruction}${lengthInstruction}\n\n${incoming}` },
         ],
       }),
     });
@@ -483,9 +566,195 @@ app.post("/draft", async (req, res) => {
     if (!reply) return res.status(502).json({ error: "Empty reply from Claude." });
     res.json({ reply });
     // Fire-and-forget usage/cost logging — never delays or breaks the response.
-    logUsage(userEmail, data.usage, MODEL).catch(() => {});
+    logUsage(userEmail, data.usage, MODEL, { kind: "draft", steerSource }).catch(() => {});
   } catch (e) {
     res.status(500).json({ error: "Server error", detail: String((e && e.message) || e) });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /suggest — smart steer chips. On message open the panel asks for up to three
+// contextual reply intents. This endpoint is FAIL-SAFE by construction: apart
+// from an auth rejection it ALWAYS returns 200 with a usable `chips` array — the
+// static catalog whenever the model is slow, over budget, disabled, or errors —
+// so the panel never blocks or breaks waiting on classification.
+// ---------------------------------------------------------------------------
+
+// The three static chips shown instantly on open and used as the universal
+// fallback. A broadly-useful trio drawn from the catalog.
+const DEFAULT_STATIC_CHIP_IDS = ["quick_thanks", "propose_time", "need_more_info"];
+function staticChips() {
+  const byId = new Map(publicPresets().map((p) => [p.id, p]));
+  return DEFAULT_STATIC_CHIP_IDS.map((id) => {
+    const p = byId.get(id);
+    return { id: p.id, label: p.label, steer_text: p.steer_text, source: "static_chip" };
+  });
+}
+
+// Small in-memory LRU for suggestion results, keyed by a hash of the user + the
+// email content. Cuts repeat model calls when the same message is reopened
+// (contextual triggers fire on every open). Bounded size + TTL; resets on restart.
+const SUGGEST_LRU_MAX = 500;
+const suggestCache = new Map();
+function suggestCacheKey(email, incoming) {
+  return crypto
+    .createHash("sha256")
+    .update(String(email || "").toLowerCase() + "\n" + incoming)
+    .digest("hex");
+}
+function suggestCacheGet(key) {
+  const v = suggestCache.get(key);
+  if (!v) return null;
+  if (v.exp < Date.now()) {
+    suggestCache.delete(key);
+    return null;
+  }
+  suggestCache.delete(key); // re-insert to mark most-recently-used
+  suggestCache.set(key, v);
+  return v.chips;
+}
+function suggestCacheSet(key, chips) {
+  suggestCache.set(key, { chips, exp: Date.now() + SUGGEST_LRU_TTL_S * 1000 });
+  while (suggestCache.size > SUGGEST_LRU_MAX) {
+    suggestCache.delete(suggestCache.keys().next().value); // evict oldest
+  }
+}
+
+// Per-user daily token cap for suggestion calls, separate from the drafting cap
+// so cheap classification never eats the drafting budget. Fails OPEN on error.
+async function overSuggestDailyCap(userEmail) {
+  if (!supabase) return false;
+  const email = String(userEmail || "").trim().toLowerCase();
+  if (!email) return false;
+  try {
+    const start = new Date();
+    start.setUTCHours(0, 0, 0, 0);
+    const { data, error } = await supabase
+      .from("usage_event")
+      .select("input_tokens,output_tokens")
+      .eq("user_email", email)
+      .eq("kind", "suggest")
+      .gte("ts", start.toISOString());
+    if (error) {
+      console.error("suggest cap check failed:", error.message);
+      return false;
+    }
+    const tokens = (data || []).reduce(
+      (s, r) => s + (Number(r.input_tokens) || 0) + (Number(r.output_tokens) || 0),
+      0
+    );
+    return tokens > SUGGEST_DAILY_TOKEN_CAP;
+  } catch (e) {
+    console.error("suggest cap check failed:", (e && e.message) || e);
+    return false;
+  }
+}
+
+// Strict-JSON classifier prompt for Haiku. Output is validated + clamped before
+// use; anything malformed makes the caller fall back to the static catalog.
+const SUGGEST_SYSTEM =
+  "You look at one incoming email and propose the reply intents its recipient is " +
+  "most likely to want to send, as one-tap chips. Output STRICT JSON ONLY, no " +
+  "prose and no markdown fences, in exactly this shape:\n" +
+  '{"chips":[{"label":"...","steer_text":"..."}]}\n' +
+  "Rules:\n" +
+  "- 1 to 3 chips, ordered most-likely first.\n" +
+  '- "label": an imperative of AT MOST 3 words naming the intent (e.g. "Accept", ' +
+  '"Propose a time", "Ask for details", "Politely decline", "Say thanks").\n' +
+  '- "steer_text": ONE sentence, imperative, telling the drafter what this reply ' +
+  "should do. Never invent facts, names, dates, or commitments not present in the email.\n" +
+  "- Cover genuinely different intents; do not return three near-duplicates.\n" +
+  "Return the JSON object and nothing else.";
+
+// Parse + validate Haiku's JSON into at most three well-formed chips. Throws when
+// the output can't yield a usable chip, so the caller falls back to static.
+function parseSuggestChips(text) {
+  let t = String(text || "").trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) t = fence[1].trim();
+  const obj = JSON.parse(t); // throws on non-JSON -> caught by caller
+  const arr = Array.isArray(obj) ? obj : obj && Array.isArray(obj.chips) ? obj.chips : null;
+  if (!arr) throw new Error("suggest: no chips array");
+  const chips = [];
+  for (const c of arr) {
+    if (!c) continue;
+    const label = String(c.label || "").trim().split(/\s+/).slice(0, 3).join(" ");
+    const steer = String(c.steer_text || "").trim().slice(0, INSTRUCTION_CAP);
+    if (label && steer) {
+      chips.push({ id: "smart_" + chips.length, label, steer_text: steer, source: "smart_chip" });
+    }
+    if (chips.length === 3) break;
+  }
+  if (!chips.length) throw new Error("suggest: empty after validation");
+  return chips;
+}
+
+// Call Haiku with a HARD server-side deadline (AbortController). UrlFetchApp has
+// no per-call timeout, so this deadline is the only thing keeping the panel snappy.
+async function classifyWithHaiku(incoming) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SUGGEST_TIMEOUT_MS);
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: SUGGEST_MODEL,
+        max_tokens: 300,
+        system: SUGGEST_SYSTEM,
+        messages: [{ role: "user", content: incoming }],
+      }),
+      signal: controller.signal,
+    });
+    if (!r.ok) throw new Error("suggest api " + r.status);
+    const data = await r.json();
+    const text = (data.content && data.content[0] && data.content[0].text) || "";
+    return { chips: parseSuggestChips(text), usage: data.usage };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+app.post("/suggest", async (req, res) => {
+  try {
+    if (!requireAuth(req)) return res.status(401).json({ error: "Unauthorized" });
+    const { from = "", subject = "", body = "", userEmail = "" } = req.body || {};
+    // Empty body -> nothing to classify; still 200 so the panel renders chips.
+    if (!String(body).trim()) return res.json({ source: "static", chips: staticChips() });
+
+    const incoming = `From: ${from}\nSubject: ${subject}\n\n${body}`.slice(0, 16000);
+
+    // Cache hit: instant, no model call, no metering.
+    const key = suggestCacheKey(userEmail, incoming);
+    const cached = suggestCacheGet(key);
+    if (cached) return res.json({ source: "smart", chips: cached, cached: true });
+
+    // Guardrails — over any of these, fall back to static SILENTLY (still 200).
+    // Suggest has its own rate bucket + daily cap, decoupled from drafting.
+    if (
+      !KEY ||
+      rateLimited("suggest:" + rateKey(req, userEmail)) ||
+      (await overSuggestDailyCap(userEmail))
+    ) {
+      return res.json({ source: "static", chips: staticChips() });
+    }
+
+    try {
+      const { chips, usage } = await classifyWithHaiku(incoming);
+      suggestCacheSet(key, chips);
+      logUsage(userEmail, usage, SUGGEST_MODEL, { kind: "suggest" }).catch(() => {});
+      return res.json({ source: "smart", chips });
+    } catch (e) {
+      // Timeout / abort / non-200 / bad JSON — silent static fallback.
+      return res.json({ source: "static", chips: staticChips() });
+    }
+  } catch (e) {
+    // Last resort: never 500 the panel.
+    return res.json({ source: "static", chips: staticChips() });
   }
 });
 
@@ -515,6 +784,15 @@ function checkEnv() {
   if (missing.length) console.error("[boot] REQUIRED env missing/invalid:", missing.join("; "));
   if (warn.length) console.warn("[boot] env warnings:", warn.join("; "));
   if (!missing.length && !warn.length) console.log("[boot] env self-check: all required vars present and well-formed");
+
+  // Smart-chip (/suggest) configuration is always optional — the endpoint falls
+  // back to the static catalog — so just echo the resolved knobs for visibility.
+  console.log(
+    "[boot] suggest: model=" + SUGGEST_MODEL +
+      " timeout=" + SUGGEST_TIMEOUT_MS + "ms" +
+      " dailyTokenCap=" + SUGGEST_DAILY_TOKEN_CAP +
+      " lruTtl=" + SUGGEST_LRU_TTL_S + "s"
+  );
 }
 
 checkEnv();
