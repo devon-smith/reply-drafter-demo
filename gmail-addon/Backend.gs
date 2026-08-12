@@ -37,3 +37,56 @@ function callDraftBackend(payload) {
   }
   return JSON.parse(text);
 }
+
+// Backend base URL, derived from DRAFT_URL by stripping the /draft suffix, so the
+// v2 endpoints (/suggest, /steers) don't need their own Script Properties.
+function backendBase_() {
+  var url = PropertiesService.getScriptProperties().getProperty('DRAFT_URL') || '';
+  return url.replace(/\/draft\/?$/, '');
+}
+function backendHeaders_() {
+  var secret = PropertiesService.getScriptProperties().getProperty('DRAFT_SECRET');
+  return secret ? { 'X-Api-Key': secret } : {};
+}
+
+// Ask the backend for smart steer chips for this message. FAIL-SAFE: returns the
+// parsed { source, chips } object, or null on any error/non-200 so the caller
+// falls back to the static catalog. The backend enforces the timeout server-side.
+function callSuggestBackend(payload) {
+  try {
+    var base = backendBase_();
+    if (!base) return null;
+    var res = UrlFetchApp.fetch(base + '/suggest', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: backendHeaders_(),
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) return null;
+    return JSON.parse(res.getContentText());
+  } catch (e) {
+    return null;
+  }
+}
+
+// Fetch a user's saved steers. FAIL-SAFE: returns an array (possibly empty), or
+// [] on any error. Result is cached by the caller to avoid a fetch on every open.
+function callSteersBackend(userEmail) {
+  try {
+    var base = backendBase_();
+    if (!base || !userEmail) return [];
+    var res = UrlFetchApp.fetch(base + '/steers', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: backendHeaders_(),
+      payload: JSON.stringify({ userEmail: userEmail }),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) return [];
+    var obj = JSON.parse(res.getContentText());
+    return (obj && obj.steers) ? obj.steers : [];
+  } catch (e) {
+    return [];
+  }
+}

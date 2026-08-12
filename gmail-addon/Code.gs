@@ -61,10 +61,36 @@ function readParam_(e, name) {
   return '';
 }
 
-// A ButtonSet of one-tap intent chips built from the static catalog
-// (SteerCatalog.gs). Each chip is a compose action that generates the reply and
-// opens the draft in ONE tap, carrying its preset id as an action parameter — the
-// backend resolves the authoritative steer text from that id.
+// The signed-in Google email (lowercased), or '' if the scope isn't granted.
+function activeEmail_() {
+  try { return (Session.getActiveUser().getEmail() || '').toLowerCase(); } catch (e) { return ''; }
+}
+
+// Whether to fetch SMART chips (a Haiku classification per open) via /suggest.
+// Default ON; set the Script Property SUGGEST_ENABLED='false' to fall back to the
+// instant static catalog with no per-open model call.
+function suggestEnabled_() {
+  return PropertiesService.getScriptProperties().getProperty('SUGGEST_ENABLED') !== 'false';
+}
+
+// A user's saved steers, cached per-user for 5 min so we don't hit /steers on
+// every message open. FAIL-SAFE via callSteersBackend (returns [] on any error).
+function savedSteersCached_(email) {
+  if (!email) return [];
+  var cache = CacheService.getUserCache();
+  var key = 'rd_steers_' + email;
+  try {
+    var hit = cache.get(key);
+    if (hit != null) return JSON.parse(hit);
+  } catch (e) {}
+  var steers = callSteersBackend(email) || [];
+  try { cache.put(key, JSON.stringify(steers), 300); } catch (e) {}
+  return steers;
+}
+
+// A ButtonSet of one-tap intent chips from the LOCAL static catalog
+// (SteerCatalog.gs). Each carries its preset id; the backend resolves the steer
+// text. Used as the instant fallback when smart chips are off/unavailable.
 function steerChipButtons_() {
   var set = CardService.newButtonSet();
   for (var i = 0; i < STEER_PRESETS.length; i++) {
@@ -80,6 +106,52 @@ function steerChipButtons_() {
       .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT));
   }
   return set;
+}
+
+// FILLED chips from a /suggest response (smart OR server-static). Each carries the
+// full steer_text + its source, so the backend drafts exactly that intent.
+function suggestChipButtons_(chips) {
+  var set = CardService.newButtonSet();
+  var n = 0;
+  for (var i = 0; i < chips.length && n < 3; i++) {
+    var c = chips[i] || {};
+    var label = String(c.label || '').trim();
+    var steer = String(c.steer_text || '').trim();
+    if (!label || !steer) continue;
+    var action = CardService.newAction()
+      .setFunctionName('onGenerateReply')
+      .setLoadIndicator(CardService.LoadIndicator.SPINNER)
+      .setParameters({ steer_text: steer, steer_source: c.source || 'smart_chip' });
+    set.addButton(CardService.newTextButton()
+      .setText(label)
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor(ACCENT)
+      .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT));
+    n++;
+  }
+  return n ? set : null;
+}
+
+// Lighter (default text-style) chips for a user's saved steers, visually distinct
+// from the FILLED intent chips. Each sends its steer_text with source saved_steer.
+function savedSteerButtons_(saved) {
+  var set = CardService.newButtonSet();
+  var n = 0;
+  for (var i = 0; i < saved.length && n < 10; i++) {
+    var s = saved[i] || {};
+    var label = String(s.label || '').trim();
+    var steer = String(s.steer_text || '').trim();
+    if (!label || !steer) continue;
+    var action = CardService.newAction()
+      .setFunctionName('onGenerateReply')
+      .setLoadIndicator(CardService.LoadIndicator.SPINNER)
+      .setParameters({ steer_text: steer, steer_source: 'saved_steer' });
+    set.addButton(CardService.newTextButton()
+      .setText(label)
+      .setComposeAction(action, CardService.ComposedEmailType.REPLY_AS_DRAFT));
+    n++;
+  }
+  return n ? set : null;
 }
 
 // Pull a display name out of a "Name <email>" From header, falling back to the
@@ -127,8 +199,10 @@ function onGmailMessageOpen(e) {
 
   var contextSection = CardService.newCardSection();
 
-  // Contextual "replying to" line so the card reflects the actual email.
-  // Best-effort: a metadata read failure must never block the card.
+  // Read the open message once (best-effort) and reuse it for the "replying to"
+  // line AND the smart-chip classification. A metadata read failure must never
+  // block the card — we degrade to static chips.
+  var m = null;
   try {
     if (e && e.gmail && e.gmail.accessToken) {
       GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken);
@@ -138,7 +212,7 @@ function onGmailMessageOpen(e) {
       if (e.gmail.messageId) {
         try { CacheService.getUserCache().put('rd_tok_' + e.gmail.messageId, e.gmail.accessToken, 600); } catch (cacheErr) {}
       }
-      var m = GmailApp.getMessageById(e.gmail.messageId);
+      m = GmailApp.getMessageById(e.gmail.messageId);
       contextSection.addWidget(CardService.newDecoratedText()
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.PERSON))
         .setTopLabel('Replying to')
@@ -148,11 +222,43 @@ function onGmailMessageOpen(e) {
     }
   } catch (ignore) {}
 
-  // One-tap intent chips: pick an intent and the draft generates + opens in a
-  // single tap. Each chip carries its preset id; the backend resolves the steer.
+  var email = activeEmail_();
+
+  // One-tap intent chips. Prefer SMART chips (contextual, from /suggest); fall
+  // back to the instant static catalog if smart chips are disabled, the message
+  // isn't readable, or the backend didn't return usable chips. Fully fail-safe:
+  // any error here still yields the static chips, so the card never breaks.
+  var chipSet = null;
+  if (m && suggestEnabled_()) {
+    try {
+      var sp = buildDraftPayload(m);
+      if (email) sp.userEmail = email;
+      var suggest = callSuggestBackend(sp);
+      if (suggest && suggest.chips && suggest.chips.length) {
+        chipSet = suggestChipButtons_(suggest.chips);
+      }
+    } catch (suggestErr) {
+      chipSet = null;
+    }
+  }
+  if (!chipSet) chipSet = steerChipButtons_();
+
   var chipsSection = CardService.newCardSection()
     .setHeader('Reply in one tap')
-    .addWidget(steerChipButtons_());
+    .addWidget(chipSet);
+
+  // A user's saved steers (dashboard-managed), rendered as lighter chips. Cached
+  // per-user; absent/empty for users who haven't saved any.
+  var savedSection = null;
+  var saved = savedSteersCached_(email);
+  if (saved && saved.length) {
+    var savedSet = savedSteerButtons_(saved);
+    if (savedSet) {
+      savedSection = CardService.newCardSection()
+        .setHeader('Your saved steers')
+        .addWidget(savedSet);
+    }
+  }
 
   // Free-text steer + the default generate button, for anything the chips don't
   // cover. Field name kept as userInstruction for backward compatibility.
@@ -186,10 +292,12 @@ function onGmailMessageOpen(e) {
       .setText('Settings')
       .setOnClickAction(CardService.newAction().setFunctionName('onOpenSettings')));
 
-  return CardService.newCardBuilder()
+  var builder = CardService.newCardBuilder()
     .setHeader(brandedHeader_('Powered by Claude'))
     .addSection(contextSection)
-    .addSection(chipsSection)
+    .addSection(chipsSection);
+  if (savedSection) builder.addSection(savedSection);
+  return builder
     .addSection(steerSection)
     .addSection(advancedSection)
     .addSection(footerSection)
@@ -230,17 +338,24 @@ function onGenerateReply(e) {
     var overrides = getOverrides_();
     if (overrides) payload.overrides = overrides;
 
-    // Per-reply steer (this draft only; never saved). Precedence: free text the
-    // user typed wins over a tapped chip (it is more specific); otherwise the
-    // chip's preset id drives the steer. Tone + length are optional one-off nudges.
+    // Per-reply steer (this draft only; never saved). Precedence, highest first:
+    //   1. free text the user typed (most specific)
+    //   2. a tapped chip carrying explicit steer_text (smart or saved steer)
+    //   3. a tapped static chip carrying a preset id (server resolves the text)
+    // Tone + length are optional one-off nudges read from the Advanced section.
     var freeText = readFormValue_(e, 'userInstruction');
+    var paramText = readParam_(e, 'steer_text');
     var presetId = readParam_(e, 'steer_preset_id');
+    var paramSource = readParam_(e, 'steer_source');
     if (freeText) {
       payload.steer_text = freeText;
       payload.steer_source = 'free_text';
+    } else if (paramText) {
+      payload.steer_text = paramText;
+      payload.steer_source = paramSource || 'smart_chip';
     } else if (presetId) {
       payload.steer_preset_id = presetId;
-      payload.steer_source = 'static_chip';
+      payload.steer_source = paramSource || 'static_chip';
     }
     var tone = readFormValue_(e, 'toneOverride');
     if (tone) payload.tone_override = tone;
