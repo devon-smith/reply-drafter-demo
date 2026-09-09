@@ -24,7 +24,7 @@ export default function Usage() {
     const since = new Date(Math.min(Date.now() - 31 * DAY_MS, monthStartMs()));
     supabase
       .from("usage_event")
-      .select("ts,input_tokens,output_tokens,est_cost_usd")
+      .select("ts,input_tokens,output_tokens,est_cost_usd,kind")
       .gte("ts", since.toISOString())
       .order("ts", { ascending: true })
       .then(({ data, error }) => {
@@ -57,8 +57,13 @@ export default function Usage() {
       { requests: 0, tokens: 0, cost: 0 }
     );
 
+  const isSuggest = (r) => r.kind === "suggest";
   const today = agg((r) => utcDayKey(r.ts) === todayKey);
   const month = agg((r) => utcDayKey(r.ts).slice(0, 7) === monthKey);
+  // Suggest-only slices, so the family can see how much cheap smart-chip
+  // classification adds on top of drafting.
+  const todaySuggest = agg((r) => utcDayKey(r.ts) === todayKey && isSuggest(r));
+  const monthSuggest = agg((r) => utcDayKey(r.ts).slice(0, 7) === monthKey && isSuggest(r));
 
   // Last 30 UTC days, oldest→newest, tokens per day.
   const days = [];
@@ -90,8 +95,8 @@ export default function Usage() {
       ) : (
         <>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <TileGroup label="Today (UTC)" s={today} />
-            <TileGroup label="This month" s={month} />
+            <TileGroup label="Today (UTC)" s={today} suggest={todaySuggest} />
+            <TileGroup label="This month" s={month} suggest={monthSuggest} />
           </div>
 
           <div style={{ marginTop: 20 }}>
@@ -148,7 +153,8 @@ export default function Usage() {
   );
 }
 
-function TileGroup({ label, s }) {
+function TileGroup({ label, s, suggest }) {
+  const hasSuggest = suggest && suggest.requests > 0;
   return (
     <div style={{ flex: "1 1 240px", background: "var(--surface-2)", border: "1px solid var(--hairline)", borderRadius: "var(--radius-sm)", padding: 16 }}>
       <div style={{ ...kicker, marginBottom: 12 }}>{label}</div>
@@ -157,6 +163,11 @@ function TileGroup({ label, s }) {
         <Stat n={fmtInt(s.tokens)} label="tokens" />
         <Stat n={fmtCost(s.cost)} label="est. cost" />
       </div>
+      {hasSuggest && (
+        <div style={{ ...muted, ...mono, fontSize: 11, marginTop: 10 }}>
+          incl. smart chips: {fmtInt(suggest.requests)} req · {fmtCost(suggest.cost)}
+        </div>
+      )}
     </div>
   );
 }
